@@ -130,7 +130,7 @@ export default function Home() {
       <input placeholder="パスワード" value={joinPassword} onChange={(e) => setJoinPassword(e.target.value)} />
       {/* <button onClick={joinRoom}>部屋に参加</button> */}
       <button
-        onClick={createRoom}
+        onClick={joinRoom}
         className="
           mt-4
           px-6
