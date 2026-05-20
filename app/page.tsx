@@ -91,12 +91,6 @@ export default function Home() {
       />
 
       {/* <button onClick={createRoom}>部屋作成</button> */}
-      {/* <button
-        onClick={createRoom}
-        className="create-room-button"
-      >
-        部屋作成
-      </button>      */}
       <button
         onClick={createRoom}
         className="
