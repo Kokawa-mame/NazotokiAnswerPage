@@ -5,11 +5,12 @@ import { useRouter } from "next/navigation";
 
 export default function Home() {
   // --- 状態（State）の定義 ---
-  const [roomId, setRoomId] = useState(""); // 既存：部屋に参加する際に使う想定
-  const [roomName, setRoomName] = useState(""); // 追加：部屋を作成する時の名前
-  const [password, setPassword] = useState("");
-  const [username, setUsername] = useState(""); // 修正：小文字のusernameに統一
-  const [answers, setAnswers] = useState(""); // 追加：クイズの正解（カンマ区切り文字列）
+  const [roomId, setRoomId] = useState(""); // 部屋に参加する際に使う想定
+  const [roomName, setRoomName] = useState(""); // 部屋を作成する時の名前
+  const [createPassword, setCreatePassword] = useState(""); // 部屋作成用パスワード.
+  const [joinPassword, setJoinPassword] = useState("");     // 部屋参加用パスワード.
+  const [username, setUsername] = useState(""); 
+  const [answers, setAnswers] = useState(""); // クイズの正解（カンマ区切り文字列）
 
   const router = useRouter();
 
@@ -21,8 +22,8 @@ export default function Home() {
         headers: { "Content-Type": "application/json" }, // 追加：JSONを送る際のマナー
         body: JSON.stringify({
           roomId,
-          password,
-          username, // 修正：定義と一致させました
+          password: joinPassword,
+          username,
         }),
       });
 
@@ -48,7 +49,7 @@ export default function Home() {
         headers: { "Content-Type": "application/json" }, // 追加
         body: JSON.stringify({
           name: roomName,
-          password: password,
+          password: createPassword,
           answers: answers.split(",").map((ans) => ans.trim()), // 改善：前後の余計な空白を削除
         }),
       });
@@ -79,8 +80,8 @@ export default function Home() {
 
        <input
         placeholder="パスワード"
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
+        value={createPassword}
+        onChange={(e) => setCreatePassword(e.target.value)}
       />
 
 
@@ -126,7 +127,7 @@ export default function Home() {
       <h1>Room Join</h1>
       <input placeholder="ユーザー名" value={username} onChange={(e) => setUsername(e.target.value)} />
       <input placeholder="ルームID" value={roomId} onChange={(e) => setRoomId(e.target.value)} />
-      <input placeholder="パスワード" value={password} onChange={(e) => setPassword(e.target.value)} />
+      <input placeholder="パスワード" value={joinPassword} onChange={(e) => setJoinPassword(e.target.value)} />
       {/* <button onClick={joinRoom}>部屋に参加</button> */}
       <button
         onClick={createRoom}
