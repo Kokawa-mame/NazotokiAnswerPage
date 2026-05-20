@@ -25,7 +25,7 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
-.create-room-button {
+/* .create-room-button {
   @apply
     mt-4
     px-6
@@ -53,4 +53,4 @@ body {
 .create-room-button:active {
   box-shadow: none;
   transform: translateY(6px);
-}
+} */

@@ -91,13 +91,38 @@ export default function Home() {
       />
 
       {/* <button onClick={createRoom}>部屋作成</button> */}
-      <button
+      {/* <button
         onClick={createRoom}
         className="create-room-button"
       >
         部屋作成
-      </button>     
+      </button>      */}
+      <button
+        onClick={createRoom}
+        className="
+          mt-4
+          px-6
+          py-3
+          rounded-xl
+          border-2
+          border-blue-700
+          bg-blue-500
+          text-white
+          font-bold
+          shadow-[0_6px_0_rgb(29,78,216)]
+          transition-all
+          duration-150
 
+          hover:bg-blue-400
+          hover:shadow-[0_4px_0_rgb(29,78,216)]
+          hover:translate-y-[2px]
+
+          active:translate-y-[6px]
+          active:shadow-none
+        "
+      >
+        部屋作成
+      </button>
 
       {/* 
         補足：現在のHTMLには「部屋に参加する（joinRoom）」ためのUI（roomIdやusernameの入力欄）がありません。
