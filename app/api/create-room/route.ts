@@ -31,9 +31,16 @@ export async function POST(req: Request) {
     .select()
     .single();
 
-  if (error) {
-    return NextResponse.json({ error }, { status: 500 });
-  }
+  // if (error) {
+  //   return NextResponse.json({ error }, { status: 500 });
+  // }
+  //変更後：エラーの「メッセージ」をテキストとして返すようにする
+if (error) {
+  return NextResponse.json(
+    { error: error.message || "Supabaseへの保存に失敗しました" }, 
+    { status: 500 }
+  );
+}
 
   // 3. 正解リスト保存
   if (answers?.length > 0) {

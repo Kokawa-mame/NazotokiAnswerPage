@@ -48,7 +48,7 @@ export default function Home() {
         headers: { "Content-Type": "application/json" }, // 追加
         body: JSON.stringify({
           name: roomName,
-          password,
+          password: password,
           answers: answers.split(",").map((ans) => ans.trim()), // 改善：前後の余計な空白を削除
         }),
       });
