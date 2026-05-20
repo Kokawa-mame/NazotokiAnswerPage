@@ -126,6 +126,7 @@ export default function Home() {
       <h1>Room Join</h1>
       <input placeholder="ユーザー名" value={username} onChange={(e) => setUsername(e.target.value)} />
       <input placeholder="ルームID" value={roomId} onChange={(e) => setRoomId(e.target.value)} />
+      <input placeholder="パスワード" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
       <button onClick={joinRoom}>部屋に参加</button>
 
     </div>
