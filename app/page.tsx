@@ -90,7 +90,13 @@ export default function Home() {
         onChange={(e) => setAnswers(e.target.value)}
       />
 
-      <button onClick={createRoom}>部屋作成</button>
+      {/* <button onClick={createRoom}>部屋作成</button> */}
+      <button
+        onClick={createRoom}
+        className="create-room-button"
+      >
+        部屋作成
+      </button>     
 
 
       {/* 
