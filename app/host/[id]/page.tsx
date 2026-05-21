@@ -7,6 +7,8 @@ import { supabase } from "@/lib/supabase";
 export default function HostPage() {
   const { id } = useParams(); // id = ルームID
   const [roomName, setRoomName] = useState<string>("読み込み中...");
+  const [roomPassword, setRoomPassword] = useState<string>(""); // 💡 パスワードを保存する状態
+  const [showPassword, setShowPassword] = useState<boolean>(false); // 💡 伏字のオンオフ状態
   const [messages, setMessages] = useState<any[]>([]);
   const [members, setMembers] = useState<any[]>([]);
   const [copied, setCopied] = useState(false);
@@ -27,14 +29,16 @@ export default function HostPage() {
     if (!id) return;
 
     const fetchInitialData = async () => {
-      // 1. ルームの基本情報（ルーム名）を取得
+      // 1. ルームの基本情報（ルーム名 & 平文パスワード）を取得
       const { data: roomData } = await supabase
         .from("rooms")
-        .select("name")
+        .select("name, password") // 💡 平文の password カラムを取得
         .eq("id", id)
         .single();
+      
       if (roomData) {
         setRoomName(roomData.name);
+        setRoomPassword(roomData.password || "なし");
       }
 
       // 2. 既存の参加者（メンバー）を取得
@@ -85,57 +89,78 @@ export default function HostPage() {
   }, [id]);
 
   return (
-    <div className="min-h-screen bg-slate-50 p-6 md:p-10 font-sans text-slate-800">
-      <div className="max-w-5xl mx-auto space-y-8">
+    <div className="min-h-screen bg-slate-50 p-4 md:p-10 font-sans text-slate-800">
+      <div className="max-w-5xl mx-auto space-y-6">
         
-        {/* ヘッダーエリア（ルーム名 & ルームID） */}
-        <header className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/80 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        {/* 👑 ヘッダーエリア（スマホ最適化・縦並びレイアウト） */}
+        <header className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80 flex flex-col gap-4">
+          {/* ① ルーム名 */}
           <div>
-            <p className="text-xs font-bold uppercase tracking-wider text-blue-500 mb-1">ホスト管理画面</p>
-            <h1 className="text-2xl md:text-3xl font-black text-slate-900">{roomName}</h1>
+            <p className="text-xs font-bold uppercase tracking-wider text-blue-500 mb-0.5">ホスト管理画面</p>
+            <h1 className="text-xl md:text-2xl font-black text-slate-900">{roomName}</h1>
           </div>
           
-          <div className="bg-slate-100 px-4 py-3 rounded-xl border border-slate-200 flex items-center gap-3 w-full md:w-auto justify-between">
-            <div className="font-mono text-sm">
-              <span className="text-slate-400 select-none mr-2">ROOM ID:</span>
-              <span className="font-bold text-slate-700">{id}</span>
+          {/* 情報ボックスグループ（スマホでもきれいに縦に並ぶレイアウト） */}
+          <div className="flex flex-col gap-2.5 w-full">
+            {/* ② ルームID */}
+            <div className="bg-slate-50 px-4 py-2.5 rounded-xl border border-slate-200/70 flex items-center justify-between gap-3">
+              <div className="font-mono text-xs md:text-sm">
+                <span className="text-slate-400 select-none mr-2">ROOM ID:</span>
+                <span className="font-bold text-slate-700">{id}</span>
+              </div>
+              <button
+                onClick={handleCopyId}
+                className={`text-xs font-bold px-3 py-1.5 rounded-lg transition-all duration-150 active:scale-95 whitespace-nowrap ${
+                  copied 
+                    ? "bg-emerald-500 text-white shadow-sm" 
+                    : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-300 shadow-sm"
+                }`}
+              >
+                {copied ? "✓ コピー完了" : "📋 コピー"}
+              </button>
             </div>
-            <button
-              onClick={handleCopyId}
-              className={`text-xs font-bold px-3 py-1.5 rounded-lg transition-all duration-150 active:scale-95 ${
-                copied 
-                  ? "bg-emerald-500 text-white shadow-sm" 
-                  : "bg-white text-slate-600 hover:bg-slate-50 border border-slate-300 shadow-sm"
-              }`}
-            >
-              {copied ? "✓ コピー完了" : "📋 コピー"}
-            </button>
+
+            {/* ③ パスワード（伏字切り替え付き） */}
+            <div className="bg-slate-50 px-4 py-2.5 rounded-xl border border-slate-200/70 flex items-center justify-between gap-3">
+              <div className="font-mono text-xs md:text-sm">
+                <span className="text-slate-400 select-none mr-2">PASSWORD:</span>
+                <span className="font-bold text-slate-700 tracking-wide">
+                  {showPassword ? roomPassword : "•".repeat(roomPassword.length || 4)}
+                </span>
+              </div>
+              <button
+                onClick={() => setShowPassword(!showPassword)}
+                className="bg-white text-slate-600 hover:bg-slate-100 border border-slate-300 text-xs font-bold px-3 py-1.5 rounded-lg transition-all duration-150 active:scale-95 whitespace-nowrap shadow-sm"
+              >
+                {showPassword ? "👁️ 隠す" : "👁️ 表示"}
+              </button>
+            </div>
           </div>
         </header>
 
-        {/* メインコンテンツ（2カラムレイアウト） */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-start">
+        {/* 📊 メインコンテンツ（PCでは2カラム、スマホでは自動で縦に1カラム化） */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
           
-          {/* ユーザー一覧（左側 1カラム分） */}
-          <section className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/80 md:col-span-1">
+          {/* 👥 ユーザー一覧 */}
+          <section className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80 md:col-span-1">
             <div className="flex justify-between items-center mb-4 border-b border-slate-100 pb-3">
-              <h2 className="font-extrabold text-lg text-slate-900 flex items-center gap-2">
-                参加プレイヤー
+              <h2 className="font-extrabold text-base md:text-lg text-slate-900">
+                👥 参加プレイヤー
               </h2>
-              <span className="bg-blue-100 text-blue-700 font-bold text-sm px-2.5 py-0.5 rounded-full">
+              <span className="bg-blue-100 text-blue-700 font-bold text-xs px-2.5 py-0.5 rounded-full">
                 {members.length} 人
               </span>
             </div>
             
-            <div className="max-h-[400px] overflow-y-auto pr-1">
+            <div className="max-h-[300px] md:max-h-[400px] overflow-y-auto pr-1">
               {members.length === 0 ? (
-                <p className="text-sm text-slate-400 text-center py-8">まだ誰も入室していません</p>
+                <p className="text-xs md:text-sm text-slate-400 text-center py-6">まだ誰も入室していません</p>
               ) : (
-                <ul className="space-y-2">
+                <ul className="space-y-1.5">
                   {members.map((m, i) => (
                     <li 
                       key={i} 
-                      className="bg-slate-50 border border-slate-200/60 rounded-xl px-4 py-3 font-semibold text-slate-700 hover:bg-slate-100/70 transition-colors"
+                      className="bg-slate-50 border border-slate-200/60 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-700"
                     >
                       {m.username}
                     </li>
@@ -145,38 +170,37 @@ export default function HostPage() {
             </div>
           </section>
 
-          {/* 回答一覧（右側 2カラム分） */}
-          <section className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/80 md:col-span-2">
+          {/* 📝 回答一覧 */}
+          <section className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80 md:col-span-2">
             <div className="mb-4 border-b border-slate-100 pb-3">
-              <h2 className="font-extrabold text-lg text-slate-900 flex items-center gap-2">
-                回答ログ
+              <h2 className="font-extrabold text-base md:text-lg text-slate-900">
+                📝 回答ログ
               </h2>
             </div>
 
-            <div className="overflow-hidden rounded-xl border border-slate-200/80">
-              <table className="w-full border-collapse bg-white text-left text-sm text-slate-600">
-                <thead className="bg-slate-50 text-xs font-bold uppercase tracking-wider text-slate-500 border-b border-slate-200">
+            <div className="overflow-x-auto rounded-xl border border-slate-200/80">
+              <table className="w-full border-collapse bg-white text-left text-xs md:text-sm text-slate-600 min-w-[320px]">
+                <thead className="bg-slate-50 font-bold uppercase tracking-wider text-slate-500 border-b border-slate-200">
                   <tr>
-                    <th className="px-6 py-3.5">プレイヤー</th>
-                    <th className="px-6 py-3.5">回答テキスト</th>
-                    <th className="px-6 py-3.5 text-center">判定結果</th>
+                    <th className="px-4 py-3">プレイヤー</th>
+                    <th className="px-4 py-3">回答</th>
+                    <th className="px-4 py-3 text-center">判定</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {messages.length === 0 ? (
                     <tr>
-                      <td colSpan={3} className="px-6 py-12 text-center text-slate-400">
+                      <td colSpan={3} className="px-4 py-10 text-center text-slate-400">
                         まだ回答が送信されていません
                       </td>
                     </tr>
                   ) : (
-                    // 最新の回答が「一番上」にくるように配列を逆順（reverse）にして表示します
                     [...messages].reverse().map((m, i) => (
                       <tr key={i} className="hover:bg-slate-50/50 transition-colors">
-                        <td className="px-6 py-4 font-bold text-slate-900">{m.username}</td>
-                        <td className="px-6 py-4 font-mono text-slate-600">{m.text}</td>
-                        <td className="px-6 py-4 text-center">
-                          <span className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-black shadow-sm ${
+                        <td className="px-4 py-3.5 font-bold text-slate-900 truncate max-w-[100px]">{m.username}</td>
+                        <td className="px-4 py-3.5 font-mono text-slate-600 break-all">{m.text}</td>
+                        <td className="px-4 py-3.5 text-center whitespace-nowrap">
+                          <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-black shadow-sm ${
                             m.is_correct 
                               ? "bg-emerald-100 text-emerald-700" 
                               : "bg-rose-100 text-rose-700"
