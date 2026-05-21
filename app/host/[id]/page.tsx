@@ -1,13 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation"; // 💡 useRouter を追加
 import { supabase } from "@/lib/supabase";
 
 export default function HostPage() {
   const { id } = useParams(); // id = 裏側の長〜いUUID
+  const router = useRouter(); // 💡 ページ移動用
+  
   const [roomName, setRoomName] = useState<string>("読み込み中...");
-  const [displayRoomId, setDisplayRoomId] = useState<string>("------"); // 💡 6桁の短いルームIDを保存する状態
+  const [displayRoomId, setDisplayRoomId] = useState<string>("------");
   const [roomPassword, setRoomPassword] = useState<string>("");
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const [correctAnswers, setCorrectAnswers] = useState<string[]>([]);
@@ -15,16 +17,50 @@ export default function HostPage() {
   const [messages, setMessages] = useState<any[]>([]);
   const [members, setMembers] = useState<any[]>([]);
   const [copied, setCopied] = useState(false);
+  const [isDestroying, setIsDestroying] = useState(false); // 💡 解散処理のロック用
 
-  // 💡 ルームID（6桁）をクリップボードにコピーする関数
+  // ルームID（6桁）をクリップボードにコピーする関数
   const handleCopyId = async () => {
     if (!displayRoomId || displayRoomId === "------") return;
     try {
-      await navigator.clipboard.writeText(displayRoomId); // 6桁のコードをコピー
+      await navigator.clipboard.writeText(displayRoomId);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
       console.error("コピーに失敗しました", err);
+    }
+  };
+
+  // 💡 部屋を完全に解散（データ削除）する関数
+  const handleDestroyRoom = async () => {
+    const confirmDestroy = confirm("⚠️ 本当にこの部屋を解散しますか？\n参加中のプレイヤーは全員強制退室となり、ログは全て削除されます。");
+    if (!confirmDestroy || isDestroying) return;
+
+    try {
+      setIsDestroying(true);
+
+      // 1. 先に参加メンバーデータをきれいに掃除（念のための安全策）
+      await supabase.from("room_members").delete().eq("room_id", id);
+
+      // 2. rooms テーブルから部屋データを削除（これによってメンバー側にDELETEイベントが飛びます）
+      const { error } = await supabase
+        .from("rooms")
+        .delete()
+        .eq("id", id);
+
+      if (error) {
+        console.error("解散エラー:", error);
+        alert(`部屋の解散に失敗しました: ${error.message}`);
+        return;
+      }
+
+      alert("部屋を解散しました。");
+      router.push("/"); // 最初のページに戻る
+    } catch (err) {
+      console.error(err);
+      alert("予期せぬエラーが発生しました");
+    } finally {
+      setIsDestroying(false);
     }
   };
 
@@ -37,18 +73,27 @@ export default function HostPage() {
 
     if (!id) return;
 
+    // メンバー一覧をデータベースから取得する共通関数
+    const fetchCurrentMembers = async () => {
+      const { data } = await supabase
+        .from("room_members")
+        .select("*")
+        .eq("room_id", id);
+      setMembers(data || []);
+    };
+
     const fetchInitialData = async () => {
       // 1. ルームの基本情報（ルーム名 & パスワード & 6桁のroom_id）を取得
       const { data: roomData } = await supabase
         .from("rooms")
-        .select("name, password, room_id") // 💡 新設した room_id をセレクトに含める
+        .select("name, password, room_id")
         .eq("id", id)
         .single();
       
       if (roomData) {
         setRoomName(roomData.name);
         setRoomPassword(roomData.password || "なし");
-        setDisplayRoomId(roomData.room_id || "未設定"); // 💡 6桁のコードをセット
+        setDisplayRoomId(roomData.room_id || "未設定");
       }
 
       // 2. ルームに設定された正解単語リストを取得
@@ -61,11 +106,7 @@ export default function HostPage() {
       }
 
       // 3. 既存の参加者（メンバー）を取得
-      const { data: memberData } = await supabase
-        .from("room_members")
-        .select("*")
-        .eq("room_id", id);
-      setMembers(memberData || []);
+      await fetchCurrentMembers();
 
       // 4. 既存のメッセージ（回答）を取得
       const { data: msgData } = await supabase
@@ -89,22 +130,17 @@ export default function HostPage() {
       )
       .subscribe();
 
-// リアルタイム監視：参加者の「入室」と「退室」の両方を検知する
-const memberChannel = supabase
-  .channel(`room-members-${id}`)
-  .on(
-    "postgres_changes",
-    { event: "*", schema: "public", table: "room_members", filter: `room_id=eq.${id}` }, // 💡 event: "INSERT" から "*" に変更
-    async () => {
-      // 一番確実なのは、データに変化があったら最新のメンバーリストを再取得することです
-      const { data } = await supabase
-        .from("room_members")
-        .select("*")
-        .eq("room_id", id);
-      setMembers(data || []);
-    }
-  )
-  .subscribe();
+    // リアルタイム監視：参加者の入退室変更を検知
+    const memberChannel = supabase
+      .channel(`room-members-changes-${id}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "room_members" },
+        async () => {
+          await fetchCurrentMembers();
+        }
+      )
+      .subscribe();
 
     return () => {
       supabase.removeChannel(messageChannel);
@@ -119,13 +155,24 @@ const memberChannel = supabase
         
         {/* 👑 ヘッダーエリア */}
         <header className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80 flex flex-col gap-4">
-          <div>
-            <p className="text-xs font-bold uppercase tracking-wider text-blue-500 mb-0.5">ホスト管理画面</p>
-            <h1 className="text-xl md:text-2xl font-black text-slate-900">{roomName}</h1>
+          <div className="flex justify-between items-start gap-4">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wider text-blue-500 mb-0.5">ホスト管理画面</p>
+              <h1 className="text-xl md:text-2xl font-black text-slate-900">{roomName}</h1>
+            </div>
+
+            {/* 💡 追加：部屋を解散するボタン */}
+            <button
+              onClick={handleDestroyRoom}
+              disabled={isDestroying}
+              className="text-xs md:text-sm font-black text-white bg-rose-600 hover:bg-rose-700 px-4 py-2.5 rounded-xl transition-all shadow-md shadow-rose-600/10 active:scale-95 whitespace-nowrap"
+            >
+              💥 {isDestroying ? "解散中..." : "部屋を解散する"}
+            </button>
           </div>
           
           <div className="flex flex-col gap-2.5 w-full">
-            {/* 💡 ルームID表示エリア（6桁コードに切り替え） */}
+            {/* ルームID表示エリア */}
             <div className="bg-slate-50 px-4 py-2.5 rounded-xl border border-slate-200/70 flex items-center justify-between gap-3">
               <div className="font-mono text-xs md:text-sm">
                 <span className="text-slate-400 select-none mr-2">ROOM ID:</span>
@@ -143,7 +190,7 @@ const memberChannel = supabase
               </button>
             </div>
 
-            {/* パスワード（Google Icon visibility / visibility_off 実装） */}
+            {/* パスワード */}
             <div className="bg-slate-50 px-4 py-2.5 rounded-xl border border-slate-200/70 flex items-center justify-between gap-3">
               <div className="font-mono text-xs md:text-sm">
                 <span className="text-slate-400 select-none mr-2">PASSWORD:</span>
@@ -156,13 +203,9 @@ const memberChannel = supabase
                 className="bg-white text-slate-600 hover:bg-slate-100 border border-slate-300 text-xs font-bold px-3 py-1.5 rounded-lg transition-all duration-150 active:scale-95 whitespace-nowrap shadow-sm flex items-center gap-1"
               >
                 {showPassword ? (
-                  <>
-                    <span className="material-icons text-[18px] leading-none">visibility</span>
-                  </>
+                  <span className="material-icons text-[18px] leading-none">visibility</span>
                 ) : (
-                  <>
-                    <span className="material-icons text-[18px] leading-none">visibility_off</span>
-                  </>
+                  <span className="material-icons text-[18px] leading-none">visibility_off</span>
                 )}
               </button>
             </div>

@@ -1,15 +1,16 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams, useSearchParams, useRouter } from "next/navigation"; // 💡 useRouter を追加
+import { useParams, useSearchParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
 export default function RoomPage() {
   const { id } = useParams(); // id = URLの末尾（長いUUID）
   const searchParams = useSearchParams();
-  const router = useRouter(); // 💡 ページ移動用のルーター
+  const router = useRouter();
 
-  const username = searchParams.get("name") || "anonymous";
+  const rawUsername = searchParams.get("name") || "anonymous";
+  const username = rawUsername.trim();
 
   const [roomName, setRoomName] = useState<string>("読み込み中...");
   const [displayRoomId, setDisplayRoomId] = useState<string>("------");
@@ -17,7 +18,10 @@ export default function RoomPage() {
   const [result, setResult] = useState<string>("");
   const [copied, setCopied] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isLeaving, setIsLeaving] = useState(false); // 💡 退室処理中のロック用
+  const [isLeaving, setIsLeaving] = useState(false);
+  
+  // 💡 追加：部屋が解散されたかどうかの状態
+  const [isRoomDestroyed, setIsRoomDestroyed] = useState<boolean>(false);
 
   // 6桁のルームIDをクリップボードにコピーする関数
   const handleCopyId = async () => {
@@ -31,40 +35,47 @@ export default function RoomPage() {
     }
   };
 
-  // 💡 部屋から退室してトップに戻る関数
+  // 部屋から退室してトップに戻る関数
   const handleLeaveRoom = async () => {
-    // ユーザーに確認を求める（誤タップ防止）
     const confirmLeave = confirm("本当にルームから退室しますか？");
     if (!confirmLeave || isLeaving) return;
 
     try {
       setIsLeaving(true);
 
-      // Supabaseの room_members テーブルから自分を削除
-      const { error } = await supabase
+      const { error, count } = await supabase
         .from("room_members")
-        .delete()
+        .delete({ count: "exact" })
         .eq("room_id", id)
         .eq("username", username);
 
       if (error) {
-        console.error("退室処理に失敗しました:", error);
-        alert("退室処理中にエラーが発生しました");
+        console.error("Supabaseエラー詳細:", error);
+        alert(`退室処理に失敗しました: ${error.message}`);
         return;
       }
 
-      // 最初のページ（トップ画面 / ）へ戻す
+      if (count === 0) {
+        await supabase
+          .from("room_members")
+          .delete()
+          .eq("room_id", id)
+          .ilike("username", username);
+      }
+
       router.push("/");
     } catch (err) {
       console.error(err);
+      alert("退室中に予期せぬエラーが発生しました");
     } finally {
       setIsLeaving(false);
     }
   };
 
-  // 画面起動時に、URLの「長いUUID」を使って部屋情報を取得する
+  // 画面起動時のデータ取得と「解散・削除イベント」のリアルタイム監視
   useEffect(() => {
     if (!id) return;
+
     const fetchRoomInfo = async () => {
       const { data, error } = await supabase
         .from("rooms")
@@ -83,7 +94,32 @@ export default function RoomPage() {
         setDisplayRoomId(data.room_id || "------");
       }
     };
+    
     fetchRoomInfo();
+
+    // ⚡ 部屋の解散（roomsテーブル全体の削除）を徹底監視
+    const roomDestroyChannel = supabase
+      .channel(`room-destroy-monitor-${id}`)
+      .on(
+        "postgres_changes",
+        { 
+          event: "DELETE", 
+          schema: "public", 
+          table: "rooms"
+        },
+        (payload) => {
+          console.log("🔥 削除イベントを受信しました！", payload);
+          if (!payload.old || payload.old.id === id) {
+            // 💡 変更点：自動移動はせず、解散フラグを「オン」にするだけにする
+            setIsRoomDestroyed(true);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(roomDestroyChannel);
+    };
   }, [id]);
 
   const send = async () => {
@@ -92,7 +128,6 @@ export default function RoomPage() {
     try {
       setIsSubmitting(true);
 
-      // Supabaseから正解リストを取得
       const { data: correctAnswers, error: fetchError } = await supabase
         .from("correct_answers")
         .select("answer")
@@ -107,7 +142,6 @@ export default function RoomPage() {
       const answerList = correctAnswers?.map((item) => item.answer) || [];
       const isCorrect = answerList.includes(text.trim());
 
-      // 判定結果（isCorrect）を含めてメッセージを保存
       const { error: insertError } = await supabase.from("messages").insert({
         room_id: id,
         username,
@@ -138,12 +172,11 @@ export default function RoomPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 p-4 md:p-10 font-sans text-slate-800 flex flex-col justify-between">
+    <div className="min-h-screen bg-slate-50 p-4 md:p-10 font-sans text-slate-800 flex flex-col justify-between relative">
       <div className="max-w-md mx-auto w-full space-y-6">
         
         {/* 👑 ヘッダーエリア */}
         <header className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80 flex flex-col gap-3">
-          {/* ルーム名と退室ボタンの並び */}
           <div className="flex justify-between items-start gap-4">
             <div>
               <div className="flex items-center gap-2 mb-0.5">
@@ -153,7 +186,6 @@ export default function RoomPage() {
               <h1 className="text-xl font-black text-slate-900 truncate max-w-[180px] sm:max-w-none">{roomName}</h1>
             </div>
 
-            {/* 💡 追加：退室ボタン */}
             <button
               onClick={handleLeaveRoom}
               disabled={isLeaving}
@@ -240,6 +272,29 @@ export default function RoomPage() {
       <footer className="text-center text-[10px] text-slate-400 font-semibold py-4">
         Nazotoki Answer Site 2026 Created by mamemema
       </footer>
+
+      {/* 💡 追加：部屋が解散された時だけ出現するフルスクリーン・ポップアップUI */}
+      {isRoomDestroyed && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-6 text-center shadow-2xl border border-slate-100 space-y-5 transform scale-100 transition-all">
+            <div className="w-16 h-16 bg-rose-50 rounded-full flex items-center justify-center mx-auto text-3xl">
+              ⚠️
+            </div>
+            <div className="space-y-1">
+              <h2 className="text-xl font-black text-slate-900">部屋が解散されました</h2>
+              <p className="text-xs text-slate-400 font-medium leading-relaxed">
+                ホストによって部屋が解散されました。<br />これ以上回答を入力することはできません。
+              </p>
+            </div>
+            <button
+              onClick={() => router.push("/")} // 💡 参加者がここを押すまで絶対に画面移動しません！
+              className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-xl shadow-lg shadow-blue-500/10 active:scale-[0.97] transition-all text-sm"
+            >
+              最初の画面に戻る
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
