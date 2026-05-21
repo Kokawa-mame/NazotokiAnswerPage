@@ -5,25 +5,30 @@ import { useRouter } from "next/navigation";
 
 export default function Home() {
   // --- 状態（State）の定義 ---
-  const [roomId, setRoomId] = useState(""); // 部屋に参加する際に使う想定
-  const [roomName, setRoomName] = useState(""); // 部屋を作成する時の名前
-  const [createPassword, setCreatePassword] = useState(""); // 部屋作成用パスワード.
-  const [joinPassword, setJoinPassword] = useState("");     // 部屋参加用パスワード.
-  const [username, setUsername] = useState(""); 
-  const [answers, setAnswers] = useState(""); // クイズの正解（カンマ区切り文字列）
+  const [roomId, setRoomId] = useState("");
+  const [roomName, setRoomName] = useState("");
+  const [createPassword, setCreatePassword] = useState("");
+  const [joinPassword, setJoinPassword] = useState("");
+  const [username, setUsername] = useState("");
+  const [answers, setAnswers] = useState("");
+
+  const [isCreating, setIsCreating] = useState(false);
+  const [isJoining, setIsJoining] = useState(false);
 
   const router = useRouter();
 
   // --- 部屋に参加する処理 ---
   const joinRoom = async () => {
+    if (!username.trim() || !roomId.trim() || !joinPassword.trim() || isJoining) return;
     try {
+      setIsJoining(true);
       const res = await fetch("/api/join-room", {
         method: "POST",
-        headers: { "Content-Type": "application/json" }, // 追加：JSONを送る際のマナー
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          roomId,
-          password: joinPassword,
-          username,
+          roomId: roomId.trim(),
+          password: joinPassword.trim(),
+          username: username.trim(),
         }),
       });
 
@@ -34,24 +39,27 @@ export default function Home() {
         return;
       }
 
-      // router.push(`/room/${roomId}?name=${username}`);
-      router.push(`/room/${data.actualRoomId}?name=${username}`);      
+      router.push(`/room/${data.actualRoomId}?name=${username.trim()}`);
     } catch (error) {
       console.error(error);
       alert("通信に失敗しました");
+    } finally {
+      setIsJoining(false);
     }
   };
 
   // --- 部屋を作成する処理 ---
   const createRoom = async () => {
+    if (!roomName.trim() || !createPassword.trim() || !answers.trim() || isCreating) return;
     try {
+      setIsCreating(true);
       const res = await fetch("/api/create-room", {
         method: "POST",
-        headers: { "Content-Type": "application/json" }, // 追加
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name: roomName,
-          password: createPassword,
-          answers: answers.split(",").map((ans) => ans.trim()), // 改善：前後の余計な空白を削除
+          name: roomName.trim(),
+          password: createPassword.trim(),
+          answers: answers.split(",").map((ans) => ans.trim()).filter(Boolean),
         }),
       });
 
@@ -66,94 +74,155 @@ export default function Home() {
     } catch (error) {
       console.error(error);
       alert("通信に失敗しました");
+    } finally {
+      setIsCreating(false);
     }
   };
 
+  // ボタンを活性化させるかどうかの判定ロジック
+  const isCreateDisabled = !roomName.trim() || !createPassword.trim() || !answers.trim() || isCreating;
+  const isJoinDisabled = !username.trim() || !roomId.trim() || !joinPassword.trim() || isJoining;
+
   return (
-    <div style={{ padding: "20px", display: "flex", flexDirection: "column", gap: "10px", maxWidth: "300px" }}>
-      <h1>Room Create</h1>
+    <div className="min-h-screen bg-slate-50 p-4 md:p-10 font-sans text-slate-800 flex flex-col items-center justify-center">
+      <div className="max-w-4xl w-full space-y-8">
+        
+        {/* 👑 サイトタイトルロゴエリア */}
+        <div className="text-center space-y-2">
+          <h1 className="text-3xl md:text-4xl font-black tracking-wider bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+            NAZOTOKI ANSWER SITE
+          </h1>
+          <p className="text-xs md:text-sm text-slate-400 font-bold tracking-wide">
+            謎解き・クイズのリアルタイム回答・集計プラットフォーム
+          </p>
+        </div>
 
-      <input
-        placeholder="部屋名"
-        value={roomName}
-        onChange={(e) => setRoomName(e.target.value)}
-      />
+        {/* 🔄 Create と Join の2分割グリッドエリア */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
+          
+          {/* 🟦 独立カード1：部屋作成（Room Create） */}
+          <section className="bg-white rounded-2xl p-6 md:p-8 shadow-sm border border-slate-200/80 flex flex-col justify-between space-y-6">
+            <div className="space-y-4">
+              <div className="border-b border-slate-100 pb-3">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-blue-500 bg-blue-50 px-2 py-1 rounded-md">HOST MODE</span>
+                <h2 className="text-xl font-black text-slate-900 mt-2 flex items-center gap-2">
+                  <span>🛠️</span> 新しい部屋を立てる
+                </h2>
+              </div>
 
-       <input
-        placeholder="パスワード"
-        value={createPassword}
-        onChange={(e) => setCreatePassword(e.target.value)}
-      />
+              <div className="space-y-3">
+                <div className="space-y-1">
+                  <label className="block text-xs font-bold text-slate-400 pl-1">部屋名 <span className="text-rose-500">*</span></label>
+                  <input
+                    type="text"
+                    value={roomName}
+                    onChange={(e) => setRoomName(e.target.value)}
+                    className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-medium transition-all text-sm"
+                  />
+                </div>
 
+                <div className="space-y-1">
+                  <label className="block text-xs font-bold text-slate-400 pl-1">入室用パスワード <span className="text-rose-500">*</span></label>
+                  <input
+                    type="text"
+                    placeholder="部屋のパスワードを入力してください"
+                    value={createPassword}
+                    onChange={(e) => setCreatePassword(e.target.value)}
+                    className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-medium transition-all text-sm"
+                  />
+                </div>
 
-      <input
-        placeholder="正解（カンマ区切り）"
-        value={answers}
-        onChange={(e) => setAnswers(e.target.value)}
-      />
+                <div className="space-y-1">
+                  <label className="block text-xs font-bold text-slate-400 pl-1">正解単語の設定 <span className="text-rose-500">*</span></label>
+                  <input
+                    type="text"
+                    placeholder="りんご, バナナ, みかん (カンマ区切り)"
+                    value={answers}
+                    onChange={(e) => setAnswers(e.target.value)}
+                    className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-mono text-sm"
+                  />
+                  <p className="text-[10px] text-slate-400 pl-1">※ 参加者がどれか1つに一致すれば「正解！」になります</p>
+                </div>
+              </div>
+            </div>
 
-      {/* <button onClick={createRoom}>部屋作成</button> */}
-      <button
-        onClick={createRoom}
-        className="
-          mt-4
-          px-6
-          py-3
-          rounded-xl
-          border-2
-          border-blue-700
-          bg-blue-500
-          text-white
-          font-bold
-          shadow-[0_6px_0_rgb(29,78,216)]
-          transition-all
-          duration-150
+            <button
+              onClick={createRoom}
+              disabled={isCreateDisabled}
+              className={`w-full py-3.5 rounded-xl font-black text-base shadow-sm transition-all duration-150 active:scale-[0.98] ${
+                isCreateDisabled
+                  ? "bg-slate-100 text-slate-400 cursor-not-allowed shadow-none"
+                  : "bg-blue-600 text-white hover:bg-blue-700 hover:shadow-lg hover:shadow-blue-500/10"
+              }`}
+            >
+              {isCreating ? "生成中..." : "🚀 部屋を作成して管理画面へ"}
+            </button>
+          </section>
 
-          hover:bg-blue-400
-          hover:shadow-[0_4px_0_rgb(29,78,216)]
-          hover:translate-y-[2px]
+          {/* 🟩 独立カード2：部屋参加（Room Join） */}
+          <section className="bg-white rounded-2xl p-6 md:p-8 shadow-sm border border-slate-200/80 flex flex-col justify-between space-y-6">
+            <div className="space-y-4">
+              <div className="border-b border-slate-100 pb-3">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-500 bg-emerald-50 px-2 py-1 rounded-md">PLAYER MODE</span>
+                <h2 className="text-xl font-black text-slate-900 mt-2 flex items-center gap-2">
+                  <span>🚪</span> 部屋に参加する
+                </h2>
+              </div>
 
-          active:translate-y-[6px]
-          active:shadow-none
-        "
-      >
-        部屋作成
-      </button>
+              <div className="space-y-3">
+                <div className="space-y-1">
+                  <label className="block text-xs font-bold text-slate-400 pl-1">ユーザー名 <span className="text-rose-500">*</span></label>
+                  <input
+                    type="text"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 font-medium transition-all text-sm"
+                  />
+                </div>
 
-      <hr />
-      <h1>Room Join</h1>
-      <input placeholder="ユーザー名" value={username} onChange={(e) => setUsername(e.target.value)} />
-      <input placeholder="ルームID" value={roomId} onChange={(e) => setRoomId(e.target.value)} />
-      <input placeholder="パスワード" value={joinPassword} onChange={(e) => setJoinPassword(e.target.value)} />
-      {/* <button onClick={joinRoom}>部屋に参加</button> */}
-      <button
-        onClick={joinRoom}
-        className="
-          mt-4
-          px-6
-          py-3
-          rounded-xl
-          border-2
-          border-blue-700
-          bg-blue-500
-          text-white
-          font-bold
-          shadow-[0_6px_0_rgb(29,78,216)]
-          transition-all
-          duration-150
+                <div className="space-y-1">
+                  <label className="block text-xs font-bold text-slate-400 pl-1">ROOM ID (6桁コード) <span className="text-rose-500">*</span></label>
+                  <input
+                    type="text"
+                    value={roomId}
+                    onChange={(e) => setRoomId(e.target.value)}
+                    className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 font-mono font-bold tracking-wider text-sm uppercase"
+                  />
+                </div>
 
-          hover:bg-blue-400
-          hover:shadow-[0_4px_0_rgb(29,78,216)]
-          hover:translate-y-[2px]
+                <div className="space-y-1">
+                  <label className="block text-xs font-bold text-slate-400 pl-1">ルームパスワード <span className="text-rose-500">*</span></label>
+                  <input
+                    type="text"
+                    placeholder="設定されたパスワードを入力してください"
+                    value={joinPassword}
+                    onChange={(e) => setJoinPassword(e.target.value)}
+                    className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 font-medium transition-all text-sm"
+                  />
+                </div>
+              </div>
+            </div>
 
-          active:translate-y-[6px]
-          active:shadow-none
-        "
-      >
-        部屋に参加
-      </button>
+            <button
+              onClick={joinRoom}
+              disabled={isJoinDisabled}
+              className={`w-full py-3.5 rounded-xl font-black text-base shadow-sm transition-all duration-150 active:scale-[0.98] ${
+                isJoinDisabled
+                  ? "bg-slate-100 text-slate-400 cursor-not-allowed shadow-none"
+                  : "bg-emerald-600 text-white hover:bg-emerald-700 hover:shadow-lg hover:shadow-emerald-500/10"
+              }`}
+            >
+              {isJoining ? "入室中..." : "🔑 認証してルームに入る"}
+            </button>
+          </section>
 
+        </div>
+      </div>
 
+      {/* 📋 クレジットフッター */}
+      <footer className="w-full text-center text-[10px] text-slate-400 font-semibold pt-16 pb-4 tracking-wider">
+        Nazotoki Answer Site 2026 Created by mamemema
+      </footer>
     </div>
   );
 }
