@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import bcrypt from "bcryptjs";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -31,8 +30,9 @@ export async function POST(req: Request) {
     );
   }
 
-  // 2. パスワード検証
-  const ok = await bcrypt.compare(password, room.password_hash);
+  // パスワード検証（修正点）
+  // 平文同士を直接「===」で比較します。
+  const ok = password === room.password; 
 
   if (!ok) {
     return NextResponse.json(

@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import bcrypt from "bcryptjs";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -18,29 +17,22 @@ export async function POST(req: Request) {
     );
   }
 
-  // 1. パスワードをハッシュ化
-  const password_hash = await bcrypt.hash(password, 10);
-
   // 2. 部屋作成
   const { data: room, error } = await supabase
     .from("rooms")
     .insert({
       name,
-      password_hash,
+      password,
     })
     .select()
     .single();
 
-  // if (error) {
-  //   return NextResponse.json({ error }, { status: 500 });
-  // }
-  //変更後：エラーの「メッセージ」をテキストとして返すようにする
-if (error) {
-  return NextResponse.json(
-    { error: error.message || "Supabaseへの保存に失敗しました" }, 
-    { status: 500 }
-  );
-}
+  if (error) {
+    return NextResponse.json(
+      { error: error.message || "Supabaseへの保存に失敗しました" }, 
+      { status: 500 }
+    );
+  }
 
   // 3. 正解リスト保存
   if (answers?.length > 0) {
