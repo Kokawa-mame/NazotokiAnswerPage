@@ -1,5 +1,3 @@
-// ここがホストのページのコード.
-
 "use client";
 
 import { useEffect, useState } from "react";
@@ -8,68 +6,78 @@ import { supabase } from "@/lib/supabase";
 
 export default function HostPage() {
   const { id } = useParams(); // id = ルームID
+  const [roomName, setRoomName] = useState<string>("読み込み中...");
   const [messages, setMessages] = useState<any[]>([]);
   const [members, setMembers] = useState<any[]>([]);
+  const [copied, setCopied] = useState(false);
+
+  // ルームIDをクリップボードにコピーする関数
+  const handleCopyId = async () => {
+    if (!id) return;
+    try {
+      await navigator.clipboard.writeText(Array.isArray(id) ? id[0] : id);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000); // 2秒後にボタンの文字を元に戻す
+    } catch (err) {
+      console.error("コピーに失敗しました", err);
+    }
+  };
 
   useEffect(() => {
     if (!id) return;
 
-    // 1. 画面を開いた瞬間に、すでに存在するデータを一度だけ取得する
     const fetchInitialData = async () => {
-      // 既存のメッセージ（回答）を取得
-      const { data: msgData } = await supabase
-        .from("messages")
-        .select("*")
-        .eq("room_id", id);
-      setMessages(msgData || []);
+      // 1. ルームの基本情報（ルーム名）を取得
+      const { data: roomData } = await supabase
+        .from("rooms")
+        .select("name")
+        .eq("id", id)
+        .single();
+      if (roomData) {
+        setRoomName(roomData.name);
+      }
 
-      // 既存の参加者（メンバー）を取得
+      // 2. 既存の参加者（メンバー）を取得
       const { data: memberData } = await supabase
         .from("room_members")
         .select("*")
         .eq("room_id", id);
       setMembers(memberData || []);
+
+      // 3. 既存のメッセージ（回答）を取得
+      const { data: msgData } = await supabase
+        .from("messages")
+        .select("*")
+        .eq("room_id", id);
+      setMessages(msgData || []);
     };
 
     fetchInitialData();
 
-    // 2. 💡 メッセージ（回答）のリアルタイム監視設定
+    // リアルタイム監視：新しい回答の検知
     const messageChannel = supabase
       .channel(`room-messages-${id}`)
       .on(
         "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "messages",
-          filter: `room_id=eq.${id}`, // この部屋のメッセージだけを狙い撃ち
-        },
+        { event: "INSERT", schema: "public", table: "messages", filter: `room_id=eq.${id}` },
         (payload) => {
-          // 新しい回答が来たら、自動でリストの末尾に追加
           setMessages((prev) => [...prev, payload.new]);
         }
       )
       .subscribe();
 
-    // 3. 💡 参加者ユーザー（メンバー）のリアルタイム監視設定
+    // リアルタイム監視：新しい参加者の検知
     const memberChannel = supabase
       .channel(`room-members-${id}`)
       .on(
         "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "room_members",
-          filter: `room_id=eq.${id}`, // この部屋に入室した人だけを狙い撃ち
-        },
+        { event: "INSERT", schema: "public", table: "room_members", filter: `room_id=eq.${id}` },
         (payload) => {
-          // 新しいプレイヤーが入室したら、自動でリストに追加
           setMembers((prev) => [...prev, payload.new]);
         }
       )
       .subscribe();
 
-    // 4. 画面を閉じたら、すべてのリアルタイム接続をキレイに切断する
     return () => {
       supabase.removeChannel(messageChannel);
       supabase.removeChannel(memberChannel);
@@ -77,73 +85,114 @@ export default function HostPage() {
   }, [id]);
 
   return (
-    <div style={{ padding: 20, fontFamily: "sans-serif" }}>
-      <h2>Host View - Room {id}</h2>
+    <div className="min-h-screen bg-slate-50 p-6 md:p-10 font-sans text-slate-800">
+      <div className="max-w-5xl mx-auto space-y-8">
+        
+        {/* ヘッダーエリア（ルーム名 & ルームID） */}
+        <header className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/80 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wider text-blue-500 mb-1">ホスト管理画面</p>
+            <h1 className="text-2xl md:text-3xl font-black text-slate-900">{roomName}</h1>
+          </div>
+          
+          <div className="bg-slate-100 px-4 py-3 rounded-xl border border-slate-200 flex items-center gap-3 w-full md:w-auto justify-between">
+            <div className="font-mono text-sm">
+              <span className="text-slate-400 select-none mr-2">ROOM ID:</span>
+              <span className="font-bold text-slate-700">{id}</span>
+            </div>
+            <button
+              onClick={handleCopyId}
+              className={`text-xs font-bold px-3 py-1.5 rounded-lg transition-all duration-150 active:scale-95 ${
+                copied 
+                  ? "bg-emerald-500 text-white shadow-sm" 
+                  : "bg-white text-slate-600 hover:bg-slate-50 border border-slate-300 shadow-sm"
+              }`}
+            >
+              {copied ? "✓ コピー完了" : "📋 コピー"}
+            </button>
+          </div>
+        </header>
 
-      {/* 🟢 セクション1: 参加者ユーザー一覧 */}
-      <div style={{ marginBottom: 30 }}>
-        <h3>👥 参加中のユーザー一覧 ({members.length}人)</h3>
-        <table border={1} style={{ borderCollapse: "collapse", width: "100%", maxWidth: "300px" }}>
-          <thead>
-            <tr style={{ backgroundColor: "#f3f4f6" }}>
-              <th style={{ padding: "8px", textAlign: "left" }}>ユーザー名</th>
-            </tr>
-          </thead>
-          <tbody>
-            {members.length === 0 ? (
-              <tr>
-                <td style={{ padding: "10px", color: "#9ca3af", textAlign: "center" }}>
-                  まだ誰も入室していません
-                </td>
-              </tr>
-            ) : (
-              members.map((m, i) => (
-                <tr key={i}>
-                  <td style={{ padding: "8px" }}>{m.username}</td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+        {/* メインコンテンツ（2カラムレイアウト） */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-start">
+          
+          {/* ユーザー一覧（左側 1カラム分） */}
+          <section className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/80 md:col-span-1">
+            <div className="flex justify-between items-center mb-4 border-b border-slate-100 pb-3">
+              <h2 className="font-extrabold text-lg text-slate-900 flex items-center gap-2">
+                参加プレイヤー
+              </h2>
+              <span className="bg-blue-100 text-blue-700 font-bold text-sm px-2.5 py-0.5 rounded-full">
+                {members.length} 人
+              </span>
+            </div>
+            
+            <div className="max-h-[400px] overflow-y-auto pr-1">
+              {members.length === 0 ? (
+                <p className="text-sm text-slate-400 text-center py-8">まだ誰も入室していません</p>
+              ) : (
+                <ul className="space-y-2">
+                  {members.map((m, i) => (
+                    <li 
+                      key={i} 
+                      className="bg-slate-50 border border-slate-200/60 rounded-xl px-4 py-3 font-semibold text-slate-700 hover:bg-slate-100/70 transition-colors"
+                    >
+                      {m.username}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </section>
 
-      <hr />
+          {/* 回答一覧（右側 2カラム分） */}
+          <section className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/80 md:col-span-2">
+            <div className="mb-4 border-b border-slate-100 pb-3">
+              <h2 className="font-extrabold text-lg text-slate-900 flex items-center gap-2">
+                回答ログ
+              </h2>
+            </div>
 
-      {/* 🔵 セクション2: 回答メッセージ一覧 */}
-      <div style={{ marginTop: 20 }}>
-        <h3>📝 届いた回答一覧</h3>
-        <table border={1} style={{ borderCollapse: "collapse", width: "100%", maxWidth: "500px" }}>
-          <thead>
-            <tr style={{ backgroundColor: "#f3f4f6" }}>
-              <th style={{ padding: "8px" }}>User</th>
-              <th style={{ padding: "8px" }}>Text</th>
-              <th style={{ padding: "8px" }}>Result</th>
-            </tr>
-          </thead>
-          <tbody>
-            {messages.length === 0 ? (
-              <tr>
-                <td colSpan={3} style={{ textAlign: "center", padding: "10px", color: "#9ca3af" }}>
-                  まだ回答がありません
-                </td>
-              </tr>
-            ) : (
-              messages.map((m, i) => (
-                <tr key={i} style={{ textAlign: "center" }}>
-                  <td style={{ padding: "8px" }}>{m.username}</td>
-                  <td style={{ padding: "8px" }}>{m.text}</td>
-                  <td style={{ 
-                    padding: "8px", 
-                    fontWeight: "bold", 
-                    color: m.is_correct ? "green" : "red" 
-                  }}>
-                    {m.is_correct ? "正解" : "不正解"}
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+            <div className="overflow-hidden rounded-xl border border-slate-200/80">
+              <table className="w-full border-collapse bg-white text-left text-sm text-slate-600">
+                <thead className="bg-slate-50 text-xs font-bold uppercase tracking-wider text-slate-500 border-b border-slate-200">
+                  <tr>
+                    <th className="px-6 py-3.5">プレイヤー</th>
+                    <th className="px-6 py-3.5">回答テキスト</th>
+                    <th className="px-6 py-3.5 text-center">判定結果</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {messages.length === 0 ? (
+                    <tr>
+                      <td colSpan={3} className="px-6 py-12 text-center text-slate-400">
+                        まだ回答が送信されていません
+                      </td>
+                    </tr>
+                  ) : (
+                    // 最新の回答が「一番上」にくるように配列を逆順（reverse）にして表示します
+                    [...messages].reverse().map((m, i) => (
+                      <tr key={i} className="hover:bg-slate-50/50 transition-colors">
+                        <td className="px-6 py-4 font-bold text-slate-900">{m.username}</td>
+                        <td className="px-6 py-4 font-mono text-slate-600">{m.text}</td>
+                        <td className="px-6 py-4 text-center">
+                          <span className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-black shadow-sm ${
+                            m.is_correct 
+                              ? "bg-emerald-100 text-emerald-700" 
+                              : "bg-rose-100 text-rose-700"
+                          }`}>
+                            {m.is_correct ? "✓ 正解" : "✗ 不正解"}
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+        </div>
       </div>
     </div>
   );
