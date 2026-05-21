@@ -119,10 +119,6 @@ export default function Home() {
         部屋作成
       </button>
 
-      {/* 
-        補足：現在のHTMLには「部屋に参加する（joinRoom）」ためのUI（roomIdやusernameの入力欄）がありません。
-        もし同じ画面に参加機能もつける場合は、以下のような入力欄とボタンが必要です。
-      */}
       <hr />
       <h1>Room Join</h1>
       <input placeholder="ユーザー名" value={username} onChange={(e) => setUsername(e.target.value)} />
