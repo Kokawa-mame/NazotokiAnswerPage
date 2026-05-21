@@ -15,21 +15,6 @@ export default function RoomPage() {
   const [text, setText] = useState("");
   const [result, setResult] = useState<string>("");
 
-  // const send = async () => {
-  //   // 仮の正解ロジック（後でDB化）
-  //   const isCorrect = text === "apple";
-
-  //   await supabase.from("messages").insert({
-  //     room_id: id,
-  //     username,
-  //     text,
-  //     is_correct: isCorrect,
-  //   });
-
-  //   setResult(isCorrect ? "正解" : "不正解");
-  //   setText("");
-  // };
-
   const send = async () => {
       if (!text.trim()) return;
 
@@ -81,7 +66,7 @@ export default function RoomPage() {
 
       <button onClick={send}>送信</button>
 
-      <p style={{ fontWeight: "bold", fontSize: "1.2rem", color: result === "正解" ? "green" : "red" }}>
+      <p style={{ fontWeight: "bold", fontSize: "1.2rem", color: result === "正解！" ? "green" : "red" }}>
         {result}
       </p>
     </div>
