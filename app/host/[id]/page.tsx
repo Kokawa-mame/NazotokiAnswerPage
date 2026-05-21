@@ -7,8 +7,10 @@ import { supabase } from "@/lib/supabase";
 export default function HostPage() {
   const { id } = useParams(); // id = ルームID
   const [roomName, setRoomName] = useState<string>("読み込み中...");
-  const [roomPassword, setRoomPassword] = useState<string>(""); // 💡 パスワードを保存する状態
-  const [showPassword, setShowPassword] = useState<boolean>(false); // 💡 伏字のオンオフ状態
+  const [roomPassword, setRoomPassword] = useState<string>("");
+  const [showPassword, setShowPassword] = useState<boolean>(false);
+  const [correctAnswers, setCorrectAnswers] = useState<string[]>([]);
+  const [showAnswers, setShowAnswers] = useState<boolean>(false);
   const [messages, setMessages] = useState<any[]>([]);
   const [members, setMembers] = useState<any[]>([]);
   const [copied, setCopied] = useState(false);
@@ -19,20 +21,26 @@ export default function HostPage() {
     try {
       await navigator.clipboard.writeText(Array.isArray(id) ? id[0] : id);
       setCopied(true);
-      setTimeout(() => setCopied(false), 2000); // 2秒後にボタンの文字を元に戻す
+      setTimeout(() => setCopied(false), 2000);
     } catch (err) {
       console.error("コピーに失敗しました", err);
     }
   };
 
   useEffect(() => {
+    // 💡 Google Material Icons を動的に読み込む
+    const link = document.createElement("link");
+    link.href = "https://fonts.googleapis.com/icon?family=Material+Icons";
+    link.rel = "stylesheet";
+    document.head.appendChild(link);
+
     if (!id) return;
 
     const fetchInitialData = async () => {
-      // 1. ルームの基本情報（ルーム名 & 平文パスワード）を取得
+      // 1. ルームの基本情報（ルーム名 & パスワード）を取得
       const { data: roomData } = await supabase
         .from("rooms")
-        .select("name, password") // 💡 平文の password カラムを取得
+        .select("name, password")
         .eq("id", id)
         .single();
       
@@ -41,14 +49,23 @@ export default function HostPage() {
         setRoomPassword(roomData.password || "なし");
       }
 
-      // 2. 既存の参加者（メンバー）を取得
+      // 2. ルームに設定された正解単語リストを取得
+      const { data: answersData } = await supabase
+        .from("correct_answers")
+        .select("answer")
+        .eq("room_id", id);
+      if (answersData) {
+        setCorrectAnswers(answersData.map((item) => item.answer));
+      }
+
+      // 3. 既存の参加者（メンバー）を取得
       const { data: memberData } = await supabase
         .from("room_members")
         .select("*")
         .eq("room_id", id);
       setMembers(memberData || []);
 
-      // 3. 既存のメッセージ（回答）を取得
+      // 4. 既存のメッセージ（回答）を取得
       const { data: msgData } = await supabase
         .from("messages")
         .select("*")
@@ -85,24 +102,24 @@ export default function HostPage() {
     return () => {
       supabase.removeChannel(messageChannel);
       supabase.removeChannel(memberChannel);
+      // クリーンアップ時に追加したlinkタグを削除
+      document.head.removeChild(link);
     };
   }, [id]);
 
   return (
-    <div className="min-h-screen bg-slate-50 p-4 md:p-10 font-sans text-slate-800">
-      <div className="max-w-5xl mx-auto space-y-6">
+    <div className="min-h-screen bg-slate-50 p-4 md:p-10 font-sans text-slate-800 flex flex-col justify-between">
+      <div className="max-w-5xl mx-auto w-full space-y-6">
         
-        {/* 👑 ヘッダーエリア（スマホ最適化・縦並びレイアウト） */}
+        {/* 👑 ヘッダーエリア */}
         <header className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80 flex flex-col gap-4">
-          {/* ① ルーム名 */}
           <div>
             <p className="text-xs font-bold uppercase tracking-wider text-blue-500 mb-0.5">ホスト管理画面</p>
             <h1 className="text-xl md:text-2xl font-black text-slate-900">{roomName}</h1>
           </div>
           
-          {/* 情報ボックスグループ（スマホでもきれいに縦に並ぶレイアウト） */}
           <div className="flex flex-col gap-2.5 w-full">
-            {/* ② ルームID */}
+            {/* ルームID */}
             <div className="bg-slate-50 px-4 py-2.5 rounded-xl border border-slate-200/70 flex items-center justify-between gap-3">
               <div className="font-mono text-xs md:text-sm">
                 <span className="text-slate-400 select-none mr-2">ROOM ID:</span>
@@ -120,7 +137,7 @@ export default function HostPage() {
               </button>
             </div>
 
-            {/* ③ パスワード（伏字切り替え付き） */}
+            {/* パスワード（Google Icon visibility / visibility_off 実装） */}
             <div className="bg-slate-50 px-4 py-2.5 rounded-xl border border-slate-200/70 flex items-center justify-between gap-3">
               <div className="font-mono text-xs md:text-sm">
                 <span className="text-slate-400 select-none mr-2">PASSWORD:</span>
@@ -130,15 +147,58 @@ export default function HostPage() {
               </div>
               <button
                 onClick={() => setShowPassword(!showPassword)}
-                className="bg-white text-slate-600 hover:bg-slate-100 border border-slate-300 text-xs font-bold px-3 py-1.5 rounded-lg transition-all duration-150 active:scale-95 whitespace-nowrap shadow-sm"
+                className="bg-white text-slate-600 hover:bg-slate-100 border border-slate-300 text-xs font-bold px-3 py-1.5 rounded-lg transition-all duration-150 active:scale-95 whitespace-nowrap shadow-sm flex items-center gap-1"
               >
-                {showPassword ? "👁️ 隠す" : "👁️ 表示"}
+                {/* 💡 Google Material Icons の切り替え */}
+                {showPassword ? (
+                  <>
+                    <span className="material-icons text-[18px] leading-none">visibility</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="material-icons text-[18px] leading-none">visibility_off</span>
+                  </>
+                )}
               </button>
             </div>
           </div>
         </header>
 
-        {/* 📊 メインコンテンツ（PCでは2カラム、スマホでは自動で縦に1カラム化） */}
+        {/* 🔑 折りたたみ式の正解単語確認コンポーネント */}
+        <section className="bg-white rounded-2xl shadow-sm border border-slate-200/80 overflow-hidden">
+          <button
+            onClick={() => setShowAnswers(!showAnswers)}
+            className="w-full flex justify-between items-center px-5 py-4 font-extrabold text-slate-900 bg-white hover:bg-slate-50/80 transition-colors text-left"
+          >
+            <span className="flex items-center gap-2 text-sm md:text-base">
+              🔑 設定された正解単語の確認
+            </span>
+            <span className="text-xs text-slate-400 bg-slate-100 px-2.5 py-1 rounded-md font-bold">
+              {showAnswers ? "🔼 閉じる" : "🔽 開く"}
+            </span>
+          </button>
+          
+          <div className={`transition-all duration-200 ease-in-out border-t border-slate-100 ${
+            showAnswers ? "max-h-[500px] p-5 opacity-100" : "max-h-0 opacity-0 pointer-events-none"
+          }`}>
+            {correctAnswers.length === 0 ? (
+              <p className="text-xs md:text-sm text-slate-400">設定された正解がありません。</p>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {correctAnswers.map((ans, i) => (
+                  <span 
+                    key={i} 
+                    className="bg-blue-50 text-blue-700 border border-blue-200/60 font-mono font-bold text-xs md:text-sm px-3 py-1.5 rounded-xl shadow-sm"
+                  >
+                    {ans}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        </section>
+
+        {/* 📊 メインコンテンツ */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
           
           {/* 👥 ユーザー一覧 */}
@@ -218,6 +278,11 @@ export default function HostPage() {
 
         </div>
       </div>
+
+      {/* 📋 クレジットフッター */}
+      <footer className="w-full text-center text-[11px] text-slate-400 font-semibold pt-12 pb-4 tracking-wider">
+        Nazotoki Answer Site 2026 Created by mamemema
+      </footer>
     </div>
   );
 }

@@ -144,7 +144,7 @@ export default function RoomPage() {
                 value={text}
                 onChange={(e) => setText(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="ここに答えを入力してね"
+                placeholder="ここに答えを入力"
                 className="w-full px-4 py-3.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-medium transition-all text-base"
                 disabled={isSubmitting}
               />
@@ -158,7 +158,7 @@ export default function RoomPage() {
                     : "bg-blue-600 text-white hover:bg-blue-700 shadow-blue-500/10 hover:shadow-lg hover:shadow-blue-500/20"
                 }`}
               >
-                {isSubmitting ? "判定中..." : "🚀 回答を送信する"}
+                {isSubmitting ? "判定中..." : "回答を送信する"}
               </button>
             </div>
           </div>
@@ -172,7 +172,7 @@ export default function RoomPage() {
             }`}>
               <p className="text-xs font-bold uppercase tracking-wider opacity-60 mb-0.5">直前の結果</p>
               <p className="text-2xl font-black tracking-wide">
-                {result === "正解！" ? "🎉 正解！" : "👻 不正解..."}
+                {result === "正解！" ? "正解！" : "不正解..."}
               </p>
             </div>
           )}
@@ -182,7 +182,7 @@ export default function RoomPage() {
       
       {/* 💡 おまけ：画面最下部のフッター */}
       <footer className="text-center text-[10px] text-slate-400 font-semibold py-4">
-        Quiz Room App • 楽しんでね！
+        Nazotoki Answer Site 2026 Created by mamemema
       </footer>
     </div>
   );
