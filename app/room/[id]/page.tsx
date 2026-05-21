@@ -1,27 +1,29 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams, useSearchParams, useRouter } from "next/navigation"; // 💡 useRouter を追加
 import { supabase } from "@/lib/supabase";
 
 export default function RoomPage() {
-  const { id } = useParams(); // id = URLの末尾（ご希望通り「長〜いUUID」が入ります）
+  const { id } = useParams(); // id = URLの末尾（長いUUID）
   const searchParams = useSearchParams();
+  const router = useRouter(); // 💡 ページ移動用のルーター
 
   const username = searchParams.get("name") || "anonymous";
 
   const [roomName, setRoomName] = useState<string>("読み込み中...");
-  const [displayRoomId, setDisplayRoomId] = useState<string>("------"); // 💡 画面表示＆コピー用に6桁コードを保管する状態
+  const [displayRoomId, setDisplayRoomId] = useState<string>("------");
   const [text, setText] = useState("");
   const [result, setResult] = useState<string>("");
   const [copied, setCopied] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false); // 連打・多重送信防止用
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLeaving, setIsLeaving] = useState(false); // 💡 退室処理中のロック用
 
-  // 💡 画面上の見栄えに合わせて「6桁コード」をクリップボードにコピーする関数
+  // 6桁のルームIDをクリップボードにコピーする関数
   const handleCopyId = async () => {
     if (!displayRoomId || displayRoomId === "------") return;
     try {
-      await navigator.clipboard.writeText(displayRoomId); // 6桁コードをコピー
+      await navigator.clipboard.writeText(displayRoomId);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
@@ -29,14 +31,45 @@ export default function RoomPage() {
     }
   };
 
-  // 💡 画面起動時に、URLの「長いUUID」を使って部屋情報を取得する
+  // 💡 部屋から退室してトップに戻る関数
+  const handleLeaveRoom = async () => {
+    // ユーザーに確認を求める（誤タップ防止）
+    const confirmLeave = confirm("本当にルームから退室しますか？");
+    if (!confirmLeave || isLeaving) return;
+
+    try {
+      setIsLeaving(true);
+
+      // Supabaseの room_members テーブルから自分を削除
+      const { error } = await supabase
+        .from("room_members")
+        .delete()
+        .eq("room_id", id)
+        .eq("username", username);
+
+      if (error) {
+        console.error("退室処理に失敗しました:", error);
+        alert("退室処理中にエラーが発生しました");
+        return;
+      }
+
+      // 最初のページ（トップ画面 / ）へ戻す
+      router.push("/");
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsLeaving(false);
+    }
+  };
+
+  // 画面起動時に、URLの「長いUUID」を使って部屋情報を取得する
   useEffect(() => {
     if (!id) return;
     const fetchRoomInfo = async () => {
       const { data, error } = await supabase
         .from("rooms")
-        .select("name, room_id") // 💡 ルーム名と6桁のroom_idを取得
-        .eq("id", id) // ⭐ URLにある「長いUUID」でレコードを特定する（これで型エラーは起きません！）
+        .select("name, room_id")
+        .eq("id", id)
         .single();
 
       if (error) {
@@ -47,7 +80,7 @@ export default function RoomPage() {
 
       if (data) {
         setRoomName(data.name);
-        setDisplayRoomId(data.room_id || "------"); // 画面表示用に6桁コードをセット
+        setDisplayRoomId(data.room_id || "------");
       }
     };
     fetchRoomInfo();
@@ -59,11 +92,11 @@ export default function RoomPage() {
     try {
       setIsSubmitting(true);
 
-      // Supabaseから正解リストを取得（長いUUIDで確実に絞り込む）
+      // Supabaseから正解リストを取得
       const { data: correctAnswers, error: fetchError } = await supabase
         .from("correct_answers")
         .select("answer")
-        .eq("room_id", id); // 内部リレーションのUUID（id）で検索
+        .eq("room_id", id);
 
       if (fetchError) {
         console.error("正解データのフェッチエラー:", fetchError);
@@ -76,7 +109,7 @@ export default function RoomPage() {
 
       // 判定結果（isCorrect）を含めてメッセージを保存
       const { error: insertError } = await supabase.from("messages").insert({
-        room_id: id, // 内部ID（UUID）をそのまま保存
+        room_id: id,
         username,
         text: text.trim(),
         is_correct: isCorrect,
@@ -88,7 +121,6 @@ export default function RoomPage() {
         return;
       }
 
-      // 画面に結果を表示
       setResult(isCorrect ? "正解！" : "不正解...");
       setText("");
     } catch (err) {
@@ -99,7 +131,6 @@ export default function RoomPage() {
     }
   };
 
-  // エンターキーでも送信できるようにする関数
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter" && !e.nativeEvent.isComposing) {
       send();
@@ -112,15 +143,27 @@ export default function RoomPage() {
         
         {/* 👑 ヘッダーエリア */}
         <header className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80 flex flex-col gap-3">
-          <div>
-            <div className="flex items-center gap-2 mb-0.5">
-              <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-              <p className="text-xs font-bold uppercase tracking-wider text-slate-400">参加中のルーム</p>
+          {/* ルーム名と退室ボタンの並び */}
+          <div className="flex justify-between items-start gap-4">
+            <div>
+              <div className="flex items-center gap-2 mb-0.5">
+                <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                <p className="text-xs font-bold uppercase tracking-wider text-slate-400">参加中のルーム</p>
+              </div>
+              <h1 className="text-xl font-black text-slate-900 truncate max-w-[180px] sm:max-w-none">{roomName}</h1>
             </div>
-            <h1 className="text-xl font-black text-slate-900 truncate">{roomName}</h1>
+
+            {/* 💡 追加：退室ボタン */}
+            <button
+              onClick={handleLeaveRoom}
+              disabled={isLeaving}
+              className="text-xs font-black text-rose-600 bg-rose-50 hover:bg-rose-100/80 px-3 py-2 rounded-xl transition-all border border-rose-200/30 active:scale-95 whitespace-nowrap"
+            >
+              🚪 {isLeaving ? "退室中..." : "退室する"}
+            </button>
           </div>
 
-          {/* ルームIDコピー部分（画面のURLは長いUUIDのまま、ここには6桁の短いコードを表示） */}
+          {/* ルームIDコピー部分 */}
           <div className="bg-slate-50 px-3.5 py-2 rounded-xl border border-slate-200/70 flex items-center justify-between gap-3">
             <div className="font-mono text-xs">
               <span className="text-slate-400 mr-1.5 select-none">ROOM ID:</span>

@@ -89,17 +89,22 @@ export default function HostPage() {
       )
       .subscribe();
 
-    // リアルタイム監視：新しい参加者の検知
-    const memberChannel = supabase
-      .channel(`room-members-${id}`)
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "room_members", filter: `room_id=eq.${id}` },
-        (payload) => {
-          setMembers((prev) => [...prev, payload.new]);
-        }
-      )
-      .subscribe();
+// リアルタイム監視：参加者の「入室」と「退室」の両方を検知する
+const memberChannel = supabase
+  .channel(`room-members-${id}`)
+  .on(
+    "postgres_changes",
+    { event: "*", schema: "public", table: "room_members", filter: `room_id=eq.${id}` }, // 💡 event: "INSERT" から "*" に変更
+    async () => {
+      // 一番確実なのは、データに変化があったら最新のメンバーリストを再取得することです
+      const { data } = await supabase
+        .from("room_members")
+        .select("*")
+        .eq("room_id", id);
+      setMembers(data || []);
+    }
+  )
+  .subscribe();
 
     return () => {
       supabase.removeChannel(messageChannel);

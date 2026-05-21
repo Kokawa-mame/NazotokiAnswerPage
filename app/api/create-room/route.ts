@@ -30,9 +30,9 @@ export async function POST(req: Request) {
   const { data: room, error } = await supabase
     .from("rooms")
     .insert({
+      room_id: shortRoomId, // ここに6桁コードを保存！
       name,
       password,
-      room_id: shortRoomId, // ここに6桁コードを保存！
     })
     .select()
     .single();
