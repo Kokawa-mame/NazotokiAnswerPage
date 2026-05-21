@@ -5,22 +5,23 @@ import { useParams, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
 export default function RoomPage() {
-  const { id } = useParams();
+  const { id } = useParams(); // id = URLの末尾（ご希望通り「長〜いUUID」が入ります）
   const searchParams = useSearchParams();
 
   const username = searchParams.get("name") || "anonymous";
 
   const [roomName, setRoomName] = useState<string>("読み込み中...");
+  const [displayRoomId, setDisplayRoomId] = useState<string>("------"); // 💡 画面表示＆コピー用に6桁コードを保管する状態
   const [text, setText] = useState("");
   const [result, setResult] = useState<string>("");
   const [copied, setCopied] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false); // 連打・多重送信防止用
 
-  // 💡 ルームIDをクリップボードにコピーする関数
+  // 💡 画面上の見栄えに合わせて「6桁コード」をクリップボードにコピーする関数
   const handleCopyId = async () => {
-    if (!id) return;
+    if (!displayRoomId || displayRoomId === "------") return;
     try {
-      await navigator.clipboard.writeText(Array.isArray(id) ? id[0] : id);
+      await navigator.clipboard.writeText(displayRoomId); // 6桁コードをコピー
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
@@ -28,17 +29,25 @@ export default function RoomPage() {
     }
   };
 
-  // 💡 画面起動時にルーム名を取得する
+  // 💡 画面起動時に、URLの「長いUUID」を使って部屋情報を取得する
   useEffect(() => {
     if (!id) return;
     const fetchRoomInfo = async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("rooms")
-        .select("name")
-        .eq("id", id)
+        .select("name, room_id") // 💡 ルーム名と6桁のroom_idを取得
+        .eq("id", id) // ⭐ URLにある「長いUUID」でレコードを特定する（これで型エラーは起きません！）
         .single();
+
+      if (error) {
+        console.error("ルーム情報の取得失敗:", error);
+        setRoomName("エラー: ルームが見つかりません");
+        return;
+      }
+
       if (data) {
         setRoomName(data.name);
+        setDisplayRoomId(data.room_id || "------"); // 画面表示用に6桁コードをセット
       }
     };
     fetchRoomInfo();
@@ -50,15 +59,15 @@ export default function RoomPage() {
     try {
       setIsSubmitting(true);
 
-      // Supabaseから正解リストを取得
+      // Supabaseから正解リストを取得（長いUUIDで確実に絞り込む）
       const { data: correctAnswers, error: fetchError } = await supabase
         .from("correct_answers")
         .select("answer")
-        .eq("room_id", id);
+        .eq("room_id", id); // 内部リレーションのUUID（id）で検索
 
       if (fetchError) {
-        console.error(fetchError);
-        alert("正解データの取得に失敗しました");
+        console.error("正解データのフェッチエラー:", fetchError);
+        alert(`正解データの取得に失敗しました: ${fetchError.message}`);
         return;
       }
 
@@ -66,12 +75,18 @@ export default function RoomPage() {
       const isCorrect = answerList.includes(text.trim());
 
       // 判定結果（isCorrect）を含めてメッセージを保存
-      await supabase.from("messages").insert({
-        room_id: id,
+      const { error: insertError } = await supabase.from("messages").insert({
+        room_id: id, // 内部ID（UUID）をそのまま保存
         username,
         text: text.trim(),
         is_correct: isCorrect,
       });
+
+      if (insertError) {
+        console.error("メッセージ保存エラー:", insertError);
+        alert(`回答の送信に失敗しました: ${insertError.message}`);
+        return;
+      }
 
       // 画面に結果を表示
       setResult(isCorrect ? "正解！" : "不正解...");
@@ -95,7 +110,7 @@ export default function RoomPage() {
     <div className="min-h-screen bg-slate-50 p-4 md:p-10 font-sans text-slate-800 flex flex-col justify-between">
       <div className="max-w-md mx-auto w-full space-y-6">
         
-        {/* 👑 ヘッダーエリア（スマホに優しいスマートな縦並び） */}
+        {/* 👑 ヘッダーエリア */}
         <header className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80 flex flex-col gap-3">
           <div>
             <div className="flex items-center gap-2 mb-0.5">
@@ -105,11 +120,11 @@ export default function RoomPage() {
             <h1 className="text-xl font-black text-slate-900 truncate">{roomName}</h1>
           </div>
 
-          {/* ルームIDコピー部分 */}
+          {/* ルームIDコピー部分（画面のURLは長いUUIDのまま、ここには6桁の短いコードを表示） */}
           <div className="bg-slate-50 px-3.5 py-2 rounded-xl border border-slate-200/70 flex items-center justify-between gap-3">
             <div className="font-mono text-xs">
               <span className="text-slate-400 mr-1.5 select-none">ROOM ID:</span>
-              <span className="font-bold text-slate-600">{id}</span>
+              <span className="font-bold text-slate-700 tracking-wider text-sm">{displayRoomId}</span>
             </div>
             <button
               onClick={handleCopyId}
@@ -137,7 +152,6 @@ export default function RoomPage() {
               回答を入力
             </label>
             
-            {/* 入力フォームとボタンの塊 */}
             <div className="flex flex-col gap-3">
               <input
                 type="text"
@@ -163,7 +177,7 @@ export default function RoomPage() {
             </div>
           </div>
 
-          {/* 🎯 正誤判定エリア（結果が出た時だけアニメーションっぽくフワッと表示） */}
+          {/* 🎯 正誤判定エリア */}
           {result && (
             <div className={`mt-4 rounded-xl p-4 border text-center transition-all animate-fade-in ${
               result === "正解！"
@@ -172,7 +186,7 @@ export default function RoomPage() {
             }`}>
               <p className="text-xs font-bold uppercase tracking-wider opacity-60 mb-0.5">直前の結果</p>
               <p className="text-2xl font-black tracking-wide">
-                {result === "正解！" ? "正解！" : "不正解..."}
+                {result === "正解！" ? "🎉 正解！" : "👻 不正解..."}
               </p>
             </div>
           )}
@@ -180,7 +194,6 @@ export default function RoomPage() {
 
       </div>
       
-      {/* 💡 おまけ：画面最下部のフッター */}
       <footer className="text-center text-[10px] text-slate-400 font-semibold py-4">
         Nazotoki Answer Site 2026 Created by mamemema
       </footer>

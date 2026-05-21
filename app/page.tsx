@@ -34,7 +34,8 @@ export default function Home() {
         return;
       }
 
-      router.push(`/room/${roomId}?name=${username}`);
+      // router.push(`/room/${roomId}?name=${username}`);
+      router.push(`/room/${data.actualRoomId}?name=${username}`);      
     } catch (error) {
       console.error(error);
       alert("通信に失敗しました");

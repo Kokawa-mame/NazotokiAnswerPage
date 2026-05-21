@@ -5,8 +5,9 @@ import { useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
 export default function HostPage() {
-  const { id } = useParams(); // id = ルームID
+  const { id } = useParams(); // id = 裏側の長〜いUUID
   const [roomName, setRoomName] = useState<string>("読み込み中...");
+  const [displayRoomId, setDisplayRoomId] = useState<string>("------"); // 💡 6桁の短いルームIDを保存する状態
   const [roomPassword, setRoomPassword] = useState<string>("");
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const [correctAnswers, setCorrectAnswers] = useState<string[]>([]);
@@ -15,11 +16,11 @@ export default function HostPage() {
   const [members, setMembers] = useState<any[]>([]);
   const [copied, setCopied] = useState(false);
 
-  // ルームIDをクリップボードにコピーする関数
+  // 💡 ルームID（6桁）をクリップボードにコピーする関数
   const handleCopyId = async () => {
-    if (!id) return;
+    if (!displayRoomId || displayRoomId === "------") return;
     try {
-      await navigator.clipboard.writeText(Array.isArray(id) ? id[0] : id);
+      await navigator.clipboard.writeText(displayRoomId); // 6桁のコードをコピー
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
@@ -28,7 +29,7 @@ export default function HostPage() {
   };
 
   useEffect(() => {
-    // 💡 Google Material Icons を動的に読み込む
+    // Google Material Icons を動的に読み込む
     const link = document.createElement("link");
     link.href = "https://fonts.googleapis.com/icon?family=Material+Icons";
     link.rel = "stylesheet";
@@ -37,16 +38,17 @@ export default function HostPage() {
     if (!id) return;
 
     const fetchInitialData = async () => {
-      // 1. ルームの基本情報（ルーム名 & パスワード）を取得
+      // 1. ルームの基本情報（ルーム名 & パスワード & 6桁のroom_id）を取得
       const { data: roomData } = await supabase
         .from("rooms")
-        .select("name, password")
+        .select("name, password, room_id") // 💡 新設した room_id をセレクトに含める
         .eq("id", id)
         .single();
       
       if (roomData) {
         setRoomName(roomData.name);
         setRoomPassword(roomData.password || "なし");
+        setDisplayRoomId(roomData.room_id || "未設定"); // 💡 6桁のコードをセット
       }
 
       // 2. ルームに設定された正解単語リストを取得
@@ -102,7 +104,6 @@ export default function HostPage() {
     return () => {
       supabase.removeChannel(messageChannel);
       supabase.removeChannel(memberChannel);
-      // クリーンアップ時に追加したlinkタグを削除
       document.head.removeChild(link);
     };
   }, [id]);
@@ -119,11 +120,11 @@ export default function HostPage() {
           </div>
           
           <div className="flex flex-col gap-2.5 w-full">
-            {/* ルームID */}
+            {/* 💡 ルームID表示エリア（6桁コードに切り替え） */}
             <div className="bg-slate-50 px-4 py-2.5 rounded-xl border border-slate-200/70 flex items-center justify-between gap-3">
               <div className="font-mono text-xs md:text-sm">
                 <span className="text-slate-400 select-none mr-2">ROOM ID:</span>
-                <span className="font-bold text-slate-700">{id}</span>
+                <span className="font-bold text-slate-700 tracking-wider text-base">{displayRoomId}</span>
               </div>
               <button
                 onClick={handleCopyId}
@@ -149,7 +150,6 @@ export default function HostPage() {
                 onClick={() => setShowPassword(!showPassword)}
                 className="bg-white text-slate-600 hover:bg-slate-100 border border-slate-300 text-xs font-bold px-3 py-1.5 rounded-lg transition-all duration-150 active:scale-95 whitespace-nowrap shadow-sm flex items-center gap-1"
               >
-                {/* 💡 Google Material Icons の切り替え */}
                 {showPassword ? (
                   <>
                     <span className="material-icons text-[18px] leading-none">visibility</span>
