@@ -106,13 +106,13 @@ export default function Home() {
               <div className="border-b border-slate-100 pb-3">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-blue-500 bg-blue-50 px-2 py-1 rounded-md">HOST MODE</span>
                 <h2 className="text-xl font-black text-slate-900 mt-2 flex items-center gap-2">
-                  <span>🛠️</span> 新しい部屋を立てる
+                  <span>🛠️</span> 新しい部屋をつくる
                 </h2>
               </div>
 
               <div className="space-y-3">
                 <div className="space-y-1">
-                  <label className="block text-xs font-bold text-slate-400 pl-1">部屋名 <span className="text-rose-500">*</span></label>
+                  <label className="block text-xs font-bold text-slate-400 pl-1">Room Name <span className="text-rose-500">*</span></label>
                   <input
                     type="text"
                     value={roomName}
@@ -122,10 +122,10 @@ export default function Home() {
                 </div>
 
                 <div className="space-y-1">
-                  <label className="block text-xs font-bold text-slate-400 pl-1">入室用パスワード <span className="text-rose-500">*</span></label>
+                  <label className="block text-xs font-bold text-slate-400 pl-1">Password <span className="text-rose-500">*</span></label>
                   <input
                     type="text"
-                    placeholder="部屋のパスワードを入力してください"
+                    placeholder="部屋のパスワードを設定してください"
                     value={createPassword}
                     onChange={(e) => setCreatePassword(e.target.value)}
                     className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-medium transition-all text-sm"
@@ -133,7 +133,7 @@ export default function Home() {
                 </div>
 
                 <div className="space-y-1">
-                  <label className="block text-xs font-bold text-slate-400 pl-1">正解単語の設定 <span className="text-rose-500">*</span></label>
+                  <label className="block text-xs font-bold text-slate-400 pl-1">Correct Words <span className="text-rose-500">*</span></label>
                   <input
                     type="text"
                     placeholder="りんご, バナナ, みかん (カンマ区切り)"
@@ -141,7 +141,6 @@ export default function Home() {
                     onChange={(e) => setAnswers(e.target.value)}
                     className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-mono text-sm"
                   />
-                  <p className="text-[10px] text-slate-400 pl-1">※ 参加者がどれか1つに一致すれば「正解！」になります</p>
                 </div>
               </div>
             </div>
@@ -155,7 +154,7 @@ export default function Home() {
                   : "bg-blue-600 text-white hover:bg-blue-700 hover:shadow-lg hover:shadow-blue-500/10"
               }`}
             >
-              {isCreating ? "生成中..." : "🚀 部屋を作成して管理画面へ"}
+              {isCreating ? "生成中..." : "部屋を作成"}
             </button>
           </section>
 
@@ -171,7 +170,7 @@ export default function Home() {
 
               <div className="space-y-3">
                 <div className="space-y-1">
-                  <label className="block text-xs font-bold text-slate-400 pl-1">ユーザー名 <span className="text-rose-500">*</span></label>
+                  <label className="block text-xs font-bold text-slate-400 pl-1">Your Name <span className="text-rose-500">*</span></label>
                   <input
                     type="text"
                     value={username}
@@ -181,7 +180,7 @@ export default function Home() {
                 </div>
 
                 <div className="space-y-1">
-                  <label className="block text-xs font-bold text-slate-400 pl-1">ROOM ID (6桁コード) <span className="text-rose-500">*</span></label>
+                  <label className="block text-xs font-bold text-slate-400 pl-1">Room ID (6桁英数字) <span className="text-rose-500">*</span></label>
                   <input
                     type="text"
                     value={roomId}
@@ -191,7 +190,7 @@ export default function Home() {
                 </div>
 
                 <div className="space-y-1">
-                  <label className="block text-xs font-bold text-slate-400 pl-1">ルームパスワード <span className="text-rose-500">*</span></label>
+                  <label className="block text-xs font-bold text-slate-400 pl-1">Password <span className="text-rose-500">*</span></label>
                   <input
                     type="text"
                     placeholder="設定されたパスワードを入力してください"
@@ -212,7 +211,7 @@ export default function Home() {
                   : "bg-emerald-600 text-white hover:bg-emerald-700 hover:shadow-lg hover:shadow-emerald-500/10"
               }`}
             >
-              {isJoining ? "入室中..." : "🔑 認証してルームに入る"}
+              {isJoining ? "入室中..." : "🔑 部屋に参加"}
             </button>
           </section>
 
