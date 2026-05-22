@@ -211,7 +211,7 @@ export default function Home() {
                   : "bg-emerald-600 text-white hover:bg-emerald-700 hover:shadow-lg hover:shadow-emerald-500/10"
               }`}
             >
-              {isJoining ? "入室中..." : "🔑 部屋に参加"}
+              {isJoining ? "入室中..." : "部屋に参加"}
             </button>
           </section>
 
