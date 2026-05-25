@@ -20,7 +20,7 @@ export default function RoomPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLeaving, setIsLeaving] = useState(false);
   
-  // 💡 追加：部屋が解散されたかどうかの状態
+  // 部屋が解散されたかどうかの状態
   const [isRoomDestroyed, setIsRoomDestroyed] = useState<boolean>(false);
 
   // 6桁のルームIDをクリップボードにコピーする関数
@@ -97,7 +97,7 @@ export default function RoomPage() {
     
     fetchRoomInfo();
 
-    // ⚡ 部屋の解散（roomsテーブル全体の削除）を徹底監視
+    // 部屋の解散（roomsテーブル全体の削除）を徹底監視
     const roomDestroyChannel = supabase
       .channel(`room-destroy-monitor-${id}`)
       .on(
@@ -110,7 +110,6 @@ export default function RoomPage() {
         (payload) => {
           console.log("🔥 削除イベントを受信しました！", payload);
           if (!payload.old || payload.old.id === id) {
-            // 💡 変更点：自動移動はせず、解散フラグを「オン」にするだけにする
             setIsRoomDestroyed(true);
           }
         }
@@ -122,12 +121,37 @@ export default function RoomPage() {
     };
   }, [id]);
 
+  // 💡 回答を送信・判定する関数
   const send = async () => {
-    if (!text.trim() || isSubmitting) return;
+    const inputWord = text.trim();
+    if (!inputWord || isSubmitting) return;
 
     try {
       setIsSubmitting(true);
 
+      // ⚡ 追加仕様：すでにこの単語で一度正解しているかチェックする
+      const { data: existingCorrect, error: checkError } = await supabase
+        .from("messages")
+        .select("id")
+        .eq("room_id", id)
+        .eq("username", username)
+        .eq("text", inputWord)
+        .eq("is_correct", true); // 正解したログがあるか
+
+      if (checkError) {
+        console.error("重複チェックエラー:", checkError);
+      }
+
+      // もし1件でも過去に同じ単語で正解レコードがあれば、弾いて終了する
+      if (existingCorrect && existingCorrect.length > 0) {
+        setResult("すでに正解しています"); // 💡 画面上の通知を切り替え
+        setText("");
+        return;
+      }
+
+      // --- ここから下は通常の判定ロジック ---
+
+      // Supabaseから正解リストを取得
       const { data: correctAnswers, error: fetchError } = await supabase
         .from("correct_answers")
         .select("answer")
@@ -140,12 +164,13 @@ export default function RoomPage() {
       }
 
       const answerList = correctAnswers?.map((item) => item.answer) || [];
-      const isCorrect = answerList.includes(text.trim());
+      const isCorrect = answerList.includes(inputWord);
 
+      // 判定結果（isCorrect）を含めてメッセージを保存
       const { error: insertError } = await supabase.from("messages").insert({
         room_id: id,
         username,
-        text: text.trim(),
+        text: inputWord,
         is_correct: isCorrect,
       });
 
@@ -155,6 +180,7 @@ export default function RoomPage() {
         return;
       }
 
+      // 結果を画面に反映
       setResult(isCorrect ? "正解！" : "不正解...");
       setText("");
     } catch (err) {
@@ -257,11 +283,13 @@ export default function RoomPage() {
             <div className={`mt-4 rounded-xl p-4 border text-center transition-all animate-fade-in ${
               result === "正解！"
                 ? "bg-emerald-50 border-emerald-200 text-emerald-800"
+                : result === "すでに正解しています"
+                ? "bg-amber-50 border-amber-200 text-amber-800" // 💡 追加：黄色いマイルドな警告カラーに
                 : "bg-rose-50 border-rose-200 text-rose-800"
             }`}>
               <p className="text-xs font-bold uppercase tracking-wider opacity-60 mb-0.5">直前の結果</p>
               <p className="text-2xl font-black tracking-wide">
-                {result === "正解！" ? "🎉 正解！" : "👻 不正解..."}
+                {result === "正解！" ? "🎉 正解！" : result === "すでに正解しています" ? "🤔 すでに正解しています" : "👻 不正解..."}
               </p>
             </div>
           )}
@@ -273,7 +301,7 @@ export default function RoomPage() {
         Nazotoki Answer Site 2026 Created by mamemema
       </footer>
 
-      {/* 💡 追加：部屋が解散された時だけ出現するフルスクリーン・ポップアップUI */}
+      {/* 部屋が解散された時のフルスクリーン・ポップアップUI */}
       {isRoomDestroyed && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
           <div className="bg-white rounded-2xl max-w-sm w-full p-6 text-center shadow-2xl border border-slate-100 space-y-5 transform scale-100 transition-all">
@@ -287,7 +315,7 @@ export default function RoomPage() {
               </p>
             </div>
             <button
-              onClick={() => router.push("/")} // 💡 参加者がここを押すまで絶対に画面移動しません！
+              onClick={() => router.push("/")}
               className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-xl shadow-lg shadow-blue-500/10 active:scale-[0.97] transition-all text-sm"
             >
               最初の画面に戻る
