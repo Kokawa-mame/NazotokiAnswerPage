@@ -341,7 +341,7 @@ export default function HostPage() {
             className="w-full flex justify-between items-center px-5 py-4 font-extrabold text-slate-900 bg-white hover:bg-slate-50/80 transition-colors text-left"
           >
             <span className="flex items-center gap-2 text-sm md:text-base">
-              🔑 設定された正解単語の確認
+              🔑 正解単語の追加・確認
             </span>
             <span className="text-xs text-slate-400 bg-slate-100 px-2.5 py-1 rounded-md font-bold">
               {showAnswers ? "🔼 閉じる" : "🔽 開く"}
@@ -378,7 +378,7 @@ export default function HostPage() {
 
             {/* 単語一覧ラベル */}
             {correctAnswers.length === 0 ? (
-              <p className="text-xs md:text-sm text-slate-400">設定された正解がありません。</p>
+              <p className="text-xs md:text-sm text-slate-400">正解単語がまだありません。</p>
             ) : (
               <div className="flex flex-wrap gap-2">
                 {correctAnswers.map((ans, i) => (

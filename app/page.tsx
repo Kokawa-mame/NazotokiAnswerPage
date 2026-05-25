@@ -10,7 +10,6 @@ export default function Home() {
   const [createPassword, setCreatePassword] = useState("");
   const [joinPassword, setJoinPassword] = useState("");
   const [username, setUsername] = useState("");
-  const [answers, setAnswers] = useState("");
 
   const [isCreating, setIsCreating] = useState(false);
   const [isJoining, setIsJoining] = useState(false);
@@ -50,7 +49,8 @@ export default function Home() {
 
   // --- 部屋を作成する処理 ---
   const createRoom = async () => {
-    if (!roomName.trim() || !createPassword.trim() || !answers.trim() || isCreating) return;
+    // 💡 部屋名とパスワードのみを必須チェック対象に変更
+    if (!roomName.trim() || !createPassword.trim() || isCreating) return;
     try {
       setIsCreating(true);
       const res = await fetch("/api/create-room", {
@@ -59,7 +59,7 @@ export default function Home() {
         body: JSON.stringify({
           name: roomName.trim(),
           password: createPassword.trim(),
-          answers: answers.split(",").map((ans) => ans.trim()).filter(Boolean),
+          answers: [], // 💡 最初の正解単語は空の配列として安全に送信
         }),
       });
 
@@ -79,8 +79,8 @@ export default function Home() {
     }
   };
 
-  // ボタンを活性化させるかどうかの判定ロジック
-  const isCreateDisabled = !roomName.trim() || !createPassword.trim() || !answers.trim() || isCreating;
+  // 💡 ボタンを活性化させるかどうかの判定ロジック（answersのチェックを排除）
+  const isCreateDisabled = !roomName.trim() || !createPassword.trim() || isCreating;
   const isJoinDisabled = !username.trim() || !roomId.trim() || !joinPassword.trim() || isJoining;
 
   return (
@@ -129,17 +129,6 @@ export default function Home() {
                     value={createPassword}
                     onChange={(e) => setCreatePassword(e.target.value)}
                     className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-medium transition-all text-sm"
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="block text-xs font-bold text-slate-400 pl-1">Correct Words <span className="text-rose-500">*</span></label>
-                  <input
-                    type="text"
-                    placeholder="りんご, バナナ, みかん (カンマ区切り)"
-                    value={answers}
-                    onChange={(e) => setAnswers(e.target.value)}
-                    className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-mono text-sm"
                   />
                 </div>
               </div>
