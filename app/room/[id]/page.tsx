@@ -4,8 +4,67 @@ import { useEffect, useState } from "react";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
+// 💡 表記揺れを完全に破壊する強力な正規化関数
+function normalizeText(str: string): string {
+  if (!str) return "";
+
+  // 1. 全角英数字を半角に変換 + 大文字を小文字に統一
+  let text = str
+    .replace(/[Ａ-Ｚａ-ｚ０-９]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 0xfee0))
+    .toLowerCase()
+    .trim();
+
+  // 2. カタカナをひらがなに変換
+  text = text.replace(/[\u30a1-\u30f6]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 0x60));
+
+  // 3. ひらがなをローマ字に一括変換するための辞書マップ (主要なブレをカバー)
+  const kanaToRomanMap: { [key: string]: string } = {
+    あ: "a", い: "i", う: "u", え: "e", お: "o",
+    か: "ka", き: "ki", く: "ku", け: "ke", こ: "ko",
+    さ: "sa", し: "shi", す: "su", せ: "se", そ: "so",
+    た: "ta", ち: "chi", つ: "tsu", て: "te", と: "to",
+    な: "na", に: "ni", ぬ: "nu", ね: "ne", の: "no",
+    は: "ha", ひ: "hi", ふ: "fu", へ: "he", ほ: "mo",
+    ま: "ma", み: "mi", む: "mu", め: "me", も: "mo",
+    や: "ya", ゆ: "yu", よ: "yo",
+    ら: "ra", り: "ri", る: "ru", れ: "re", ろ: "ro",
+    わ: "wa", を: "wo", ん: "n",
+    が: "ga", ぎ: "gi", ぐ: "gu", げ: "ge", ご: "go",
+    ざ: "za", じ: "ji", ず: "zu", ぜ: "ze", ぞ: "zo",
+    だ: "da", ぢ: "ji", づ: "zu", で: "de", ど: "do",
+    ば: "ba", び: "bi", ぶ: "bu", べ: "be", ぼ: "bo",
+    ぱ: "pa", ぴ: "pi", ぷ: "pu", ぺ: "pe", ぽ: "po",
+    きゃ: "kya", きゅ: "kyu", きょ: "kyo",
+    しゃ: "sha", しゅ: "shu", しょ: "sho",
+    ちゃ: "cha", ちゅ: "chu", ちょ: "cho",
+    にゃ: "nya", にゅ: "nyu", にょ: "nyo",
+    ひゃ: "hya", ひゅ: "hyu", ひょ: "hyo",
+    みゃ: "mya", みゅ: "myu", みょ: "myo",
+    りゃ: "rya", りゅ: "ryu", りょ: "ryo",
+    ぎゃ: "gya", ぎゅ: "gyu", ぎょ: "gyo",
+    じゃ: "ja", じゅ: "ju", じょ: "jo",
+    びゃ: "bya", びゅ: "byu", びょ: "byo",
+    ぴゃ: "pya", ぴゅ: "pyu", ぴょ: "pyo",
+    ー: "", っ: "tsu", ぁ: "a", ぃ: "i", ぅ: "u", ぇ: "e", ぉ: "o"
+  };
+
+  // 2文字の拗音（きゃ、しゅ 等）を先に置換
+  const doubleKeys = Object.keys(kanaToRomanMap).filter(k => k.length === 2);
+  for (const key of doubleKeys) {
+    text = text.replaceAll(key, kanaToRomanMap[key]);
+  }
+
+  // 1文字の通常音（あ、か 等）を置換
+  const singleKeys = Object.keys(kanaToRomanMap).filter(k => k.length === 1);
+  for (const key of singleKeys) {
+    text = text.replaceAll(key, kanaToRomanMap[key]);
+  }
+
+  return text;
+}
+
 export default function RoomPage() {
-  const { id } = useParams(); // id = URLの末尾（長いUUID）
+  const { id } = useParams();
   const searchParams = useSearchParams();
   const router = useRouter();
 
@@ -19,11 +78,8 @@ export default function RoomPage() {
   const [copied, setCopied] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLeaving, setIsLeaving] = useState(false);
-  
-  // 部屋が解散されたかどうかの状態
   const [isRoomDestroyed, setIsRoomDestroyed] = useState<boolean>(false);
 
-  // 6桁のルームIDをクリップボードにコピーする関数
   const handleCopyId = async () => {
     if (!displayRoomId || displayRoomId === "------") return;
     try {
@@ -35,14 +91,12 @@ export default function RoomPage() {
     }
   };
 
-  // 部屋から退室してトップに戻る関数
   const handleLeaveRoom = async () => {
     const confirmLeave = confirm("本当にルームから退室しますか？");
     if (!confirmLeave || isLeaving) return;
 
     try {
       setIsLeaving(true);
-
       const { error, count } = await supabase
         .from("room_members")
         .delete({ count: "exact" })
@@ -72,7 +126,6 @@ export default function RoomPage() {
     }
   };
 
-  // 画面起動時のデータ取得と「解散・削除イベント」のリアルタイム監視
   useEffect(() => {
     if (!id) return;
 
@@ -97,18 +150,12 @@ export default function RoomPage() {
     
     fetchRoomInfo();
 
-    // 部屋の解散（roomsテーブル全体の削除）を徹底監視
     const roomDestroyChannel = supabase
       .channel(`room-destroy-monitor-${id}`)
       .on(
         "postgres_changes",
-        { 
-          event: "DELETE", 
-          schema: "public", 
-          table: "rooms"
-        },
+        { event: "DELETE", schema: "public", table: "rooms" },
         (payload) => {
-          console.log("🔥 削除イベントを受信しました！", payload);
           if (!payload.old || payload.old.id === id) {
             setIsRoomDestroyed(true);
           }
@@ -121,7 +168,6 @@ export default function RoomPage() {
     };
   }, [id]);
 
-  // 💡 回答を送信・判定する関数
   const send = async () => {
     const inputWord = text.trim();
     if (!inputWord || isSubmitting) return;
@@ -129,27 +175,32 @@ export default function RoomPage() {
     try {
       setIsSubmitting(true);
 
-      // ⚡ 追加仕様：すでにこの単語で一度正解しているかチェックする
-      const { data: existingCorrect, error: checkError } = await supabase
+      // 💡 今回の入力単語を正規化 (例:「リンゴ」「ＲＩＮＧＯ」➔「ringo」に変換)
+      const normalizedInput = normalizeText(inputWord);
+
+      // ⚡ 重複チェック用の全ログ取得
+      // (入力した言葉そのものだけでなく、表記揺れも検知するため、ユーザーの過去メッセージを全件走査)
+      const { data: userHistory, error: checkError } = await supabase
         .from("messages")
-        .select("id")
+        .select("text, is_correct")
         .eq("room_id", id)
         .eq("username", username)
-        .eq("text", inputWord)
-        .eq("is_correct", true); // 正解したログがあるか
+        .eq("is_correct", true);
 
-      if (checkError) {
-        console.error("重複チェックエラー:", checkError);
-      }
+      if (checkError) console.error("履歴チェックエラー:", checkError);
 
-      // もし1件でも過去に同じ単語で正解レコードがあれば、弾いて終了する
-      if (existingCorrect && existingCorrect.length > 0) {
-        setResult("すでに正解しています"); // 💡 画面上の通知を切り替え
+      // 過去に正解した単語の中に、今回入力した単語と「正規化データが一致するもの」があるか調べる
+      const isAlreadyCleared = userHistory?.some(
+        (msg) => normalizeText(msg.text) === normalizedInput
+      );
+
+      if (isAlreadyCleared) {
+        setResult("すでに正解しています");
         setText("");
         return;
       }
 
-      // --- ここから下は通常の判定ロジック ---
+      // --- 通常の判定ロジック ---
 
       // Supabaseから正解リストを取得
       const { data: correctAnswers, error: fetchError } = await supabase
@@ -163,10 +214,14 @@ export default function RoomPage() {
         return;
       }
 
-      const answerList = correctAnswers?.map((item) => item.answer) || [];
-      const isCorrect = answerList.includes(inputWord);
+      // 正解リストもすべて正規化して配列にする
+      const normalizedAnswerList = correctAnswers?.map((item) => normalizeText(item.answer)) || [];
+      
+      // 正規化した状態同士で安全に比較
+      const isCorrect = normalizedAnswerList.includes(normalizedInput);
 
       // 判定結果（isCorrect）を含めてメッセージを保存
+      // 💡 あとからホストがログを見返せるよう、送信した生のテキスト(inputWord)のまま保存します
       const { error: insertError } = await supabase.from("messages").insert({
         room_id: id,
         username,
@@ -180,7 +235,6 @@ export default function RoomPage() {
         return;
       }
 
-      // 結果を画面に反映
       setResult(isCorrect ? "正解！" : "不正解...");
       setText("");
     } catch (err) {
@@ -284,7 +338,7 @@ export default function RoomPage() {
               result === "正解！"
                 ? "bg-emerald-50 border-emerald-200 text-emerald-800"
                 : result === "すでに正解しています"
-                ? "bg-amber-50 border-amber-200 text-amber-800" // 💡 追加：黄色いマイルドな警告カラーに
+                ? "bg-amber-50 border-amber-200 text-amber-800"
                 : "bg-rose-50 border-rose-200 text-rose-800"
             }`}>
               <p className="text-xs font-bold uppercase tracking-wider opacity-60 mb-0.5">直前の結果</p>

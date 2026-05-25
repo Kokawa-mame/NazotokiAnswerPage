@@ -4,6 +4,63 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
+// 💡 プレイヤー別正解進捗ボードの比較用：表記揺れを完全に破壊する強力な正規化関数
+function normalizeText(str: string): string {
+  if (!str) return "";
+
+  // 1. 全角英数字を半角に変換 + 大文字を小文字に統一
+  let text = str
+    .replace(/[Ａ-Ｚａ-ｚ０-９]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 0xfee0))
+    .toLowerCase()
+    .trim();
+
+  // 2. カタカナをひらがなに変換
+  text = text.replace(/[\u30a1-\u30f6]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 0x60));
+
+  // 3. ひらがなをローマ字に一括変換するための辞書マップ
+  const kanaToRomanMap: { [key: string]: string } = {
+    あ: "a", い: "i", う: "u", え: "e", お: "o",
+    か: "ka",き: "ki", く: "ku", け: "ke", こ: "ko",
+    さ: "sa", し: "shi", す: "su", せ: "se", そ: "so",
+    た: "ta", ち: "chi", つ: "tsu", て: "te", と: "to",
+    な: "na", に: "ni", ぬ: "nu", ね: "ne", の: "no",
+    は: "ha", ひ: "hi", ふ: "fu", へ: "he", ほ: "mo",
+    ま: "ma", み: "mi", む: "mu", め: "me", も: "mo",
+    や: "ya", ゆ: "yu", よ: "yo",
+    ら: "ra", り: "ri", る: "ru", れ: "re", ろ: "ro",
+    わ: "wa", を: "wo", ん: "n",
+    gが: "ga", ぎ: "gi", ぐ: "gu", げ: "ge", ご: "go",
+    ざ: "za", じ: "ji", ず: "zu", ぜ: "ze", ぞ: "zo",
+    だ: "da", ぢ: "ji", づ: "zu", で: "de", ど: "do",
+    ば: "ba", び: "bi", ぶ: "bu", べ: "be", ぼ: "bo",
+    ぱ: "pa", ぴ: "pi", ぷ: "pu", ぺ: "pe", ぽ: "po",
+    きゃ: "kya", きゅ: "kyu", きょ: "kyo",
+    しゃ: "sha", しゅ: "shu", しょ: "sho",
+    ちゃ: "cha", ちゅ: "chu", ちょ: "cho",
+    にゃ: "nya", にゅ: "nyu", にょ: "nyo",
+    ひゃ: "hya", ひゅ: "hyu", hょ: "hyo",
+    みゃ: "mya", みゅ: "myu", みょ: "myo",
+    りゃ: "rya", りゅ: "ryu", りょ: "ryo",
+    ぎゃ: "gya", ぎゅ: "gyu", ぎょ: "gyo",
+    じゃ: "ja", じゅ: "ju", じょ: "jo",
+    びゃ: "bya", びゅ: "byu", びょ: "byo",
+    ぴゃ: "pya", ぴゅ: "pyu", ぴょ: "po",
+    ー: "", っ: "tsu", ぁ: "a", ぃ: "i", ぅ: "u", ぇ: "e", ぉ: "o"
+  };
+
+  const doubleKeys = Object.keys(kanaToRomanMap).filter(k => k.length === 2);
+  for (const key of doubleKeys) {
+    text = text.replaceAll(key, kanaToRomanMap[key]);
+  }
+
+  const singleKeys = Object.keys(kanaToRomanMap).filter(k => k.length === 1);
+  for (const key of singleKeys) {
+    text = text.replaceAll(key, kanaToRomanMap[key]);
+  }
+
+  return text;
+}
+
 export default function HostPage() {
   const { id } = useParams(); // id = 裏側の長〜いUUID
   const router = useRouter();
@@ -128,10 +185,12 @@ export default function HostPage() {
     }
   };
 
-  // 💡 該当ユーザーが、特定の単語を正解しているか判定するヘルパー関数
+  // 💡 修正：表記揺れ対応の判定ヘルパー関数
+  // ユーザーの回答ログ(m.text)と、進捗表のヘッダーにある登録単語(answerWord)を、両方正規化して比較する
   const checkUserAnswerStatus = (username: string, answerWord: string) => {
+    const normalizedTarget = normalizeText(answerWord);
     return messages.some(
-      (m) => m.username === username && m.text === answerWord && m.is_correct === true
+      (m) => m.username === username && normalizeText(m.text) === normalizedTarget && m.is_correct === true
     );
   };
 
@@ -293,7 +352,7 @@ export default function HostPage() {
             showAnswers ? "max-h-[500px] p-5 opacity-100" : "max-h-0 opacity-0 pointer-events-none"
           }`}>
             
-            {/* 🔑 インラインの正解単語追加フォームエリア（スマホ対応版） */}
+            {/* インラインの正解単語追加フォームエリア（スマホ対応版） */}
             <div className="flex flex-col sm:flex-row gap-2 max-w-md mb-5 bg-slate-50 p-2.5 rounded-xl border border-slate-200/60">
               <input
                 type="text"
@@ -315,7 +374,7 @@ export default function HostPage() {
               >
                 {isAddingAnswer ? "追加中..." : "➕ 追加"}
               </button>
-            </div> 
+            </div>
 
             {/* 単語一覧ラベル */}
             {correctAnswers.length === 0 ? (
@@ -338,13 +397,13 @@ export default function HostPage() {
           </div>
         </section>
 
-        {/* 💡 🎯 正解進捗状況マトリックス表（ワイド表示） */}
+        {/* 🎯 正解進捗状況マトリックス表 */}
         <section className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80 w-full">
           <div className="mb-4 border-b border-slate-100 pb-3">
             <h2 className="font-extrabold text-base md:text-lg text-slate-900 flex items-center gap-2">
               <span>🎯</span> プレイヤー別 正解進捗状況ボード
             </h2>
-            <p className="text-[11px] text-slate-400 font-semibold mt-0.5">登録中の正解単語を誰がクリアしているかが一目で分かります</p>
+            <p className="text-[11px] text-slate-400 font-semibold mt-0.5">登録中の正解単語を誰がクリアしているかが一目で分かります（表記揺れ対応済）</p>
           </div>
 
           <div className="overflow-x-auto rounded-xl border border-slate-200/80">
@@ -380,6 +439,7 @@ export default function HostPage() {
                         <td className="px-4 py-3.5 text-slate-400">ー</td>
                       ) : (
                         correctAnswers.map((ans, aIdx) => {
+                          // 💡 新しいヘルパー関数で比較。これによって表記揺れ送信でも「🟢 正解」になります
                           const isCleared = checkUserAnswerStatus(member.username, ans);
                           return (
                             <td key={aIdx} className="px-4 py-3.5 text-center whitespace-nowrap">
@@ -402,10 +462,10 @@ export default function HostPage() {
           </div>
         </section>
 
-        {/* 📊 メインコンテンツ（下段グリッド：回答ログを上へ、参加メンバーを下へ配置） */}
+        {/* 📊 メインコンテンツ（下段グリッド） */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
           
-          {/* 📝 回答一覧（左〜中央にかけてワイドに表示） */}
+          {/* 📝 回答一覧 */}
           <section className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80 md:col-span-2">
             <div className="mb-4 border-b border-slate-100 pb-3">
               <h2 className="font-extrabold text-base md:text-lg text-slate-900">
@@ -451,7 +511,7 @@ export default function HostPage() {
             </div>
           </section>
 
-          {/* 👥 ユーザー一覧（右側にコンパクトに表示） */}
+          {/* 👥 ユーザー一覧 */}
           <section className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80 md:col-span-1">
             <div className="flex justify-between items-center mb-4 border-b border-slate-100 pb-3">
               <h2 className="font-extrabold text-base md:text-lg text-slate-900">
