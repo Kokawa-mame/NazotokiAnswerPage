@@ -293,8 +293,8 @@ export default function HostPage() {
             showAnswers ? "max-h-[500px] p-5 opacity-100" : "max-h-0 opacity-0 pointer-events-none"
           }`}>
             
-            {/* インラインの正解単語追加フォームエリア */}
-            <div className="flex gap-2 max-w-md mb-5 bg-slate-50 p-2.5 rounded-xl border border-slate-200/60">
+            {/* 🔑 インラインの正解単語追加フォームエリア（スマホ対応版） */}
+            <div className="flex flex-col sm:flex-row gap-2 max-w-md mb-5 bg-slate-50 p-2.5 rounded-xl border border-slate-200/60">
               <input
                 type="text"
                 placeholder="新しい正解単語を追加"
@@ -302,12 +302,12 @@ export default function HostPage() {
                 onChange={(e) => setNewAnswer(e.target.value)}
                 onKeyDown={handleAnswerKeyDown}
                 disabled={isAddingAnswer}
-                className="flex-1 px-3 py-2 rounded-lg bg-white border border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm font-semibold transition-all"
+                className="w-full sm:flex-1 px-3 py-2 rounded-lg bg-white border border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm font-semibold transition-all"
               />
               <button
                 onClick={handleAddAnswer}
                 disabled={isAddingAnswer || !newAnswer.trim()}
-                className={`px-4 py-2 font-black text-sm rounded-lg shadow-sm transition-all active:scale-95 whitespace-nowrap ${
+                className={`w-full sm:w-auto px-5 py-2 font-black text-sm rounded-lg shadow-sm transition-all active:scale-95 text-center flex justify-center items-center ${
                   !newAnswer.trim() || isAddingAnswer
                     ? "bg-slate-200 text-slate-400 cursor-not-allowed shadow-none"
                     : "bg-blue-600 text-white hover:bg-blue-700"
@@ -315,7 +315,7 @@ export default function HostPage() {
               >
                 {isAddingAnswer ? "追加中..." : "➕ 追加"}
               </button>
-            </div>
+            </div> 
 
             {/* 単語一覧ラベル */}
             {correctAnswers.length === 0 ? (
