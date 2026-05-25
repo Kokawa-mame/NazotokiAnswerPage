@@ -180,7 +180,7 @@ export default function Home() {
                 </div>
 
                 <div className="space-y-1">
-                  <label className="block text-xs font-bold text-slate-400 pl-1">Room ID (6桁英数字) <span className="text-rose-500">*</span></label>
+                  <label className="block text-xs font-bold text-slate-400 pl-1">Room ID (6桁数字) <span className="text-rose-500">*</span></label>
                   <input
                     type="text"
                     value={roomId}

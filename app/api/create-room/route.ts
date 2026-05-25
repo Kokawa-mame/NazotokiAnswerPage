@@ -6,9 +6,9 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-// 💡 ランダムな6桁の英数字を生成する関数（見づらい O, 0, I, 1 を排除）
+// 💡 ランダムな6桁の数字を生成する関数.
 function generateShortRoomId(): string {
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  const chars = "0123456789";
   let result = "";
   for (let i = 0; i < 6; i++) {
     result += chars.charAt(Math.floor(Math.random() * chars.length));
