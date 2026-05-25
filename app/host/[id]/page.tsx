@@ -338,7 +338,7 @@ export default function HostPage() {
           </div>
         </section>
 
-        {/* 💡 新設：🎯 正解進捗状況マトリックス表（ワイド表示） */}
+        {/* 💡 🎯 正解進捗状況マトリックス表（ワイド表示） */}
         <section className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80 w-full">
           <div className="mb-4 border-b border-slate-100 pb-3">
             <h2 className="font-extrabold text-base md:text-lg text-slate-900 flex items-center gap-2">
@@ -402,39 +402,10 @@ export default function HostPage() {
           </div>
         </section>
 
-        {/* 📊 メインコンテンツ（下段グリッド） */}
+        {/* 📊 メインコンテンツ（下段グリッド：回答ログを上へ、参加メンバーを下へ配置） */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
           
-          {/* 👥 ユーザー一覧 */}
-          <section className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80 md:col-span-1">
-            <div className="flex justify-between items-center mb-4 border-b border-slate-100 pb-3">
-              <h2 className="font-extrabold text-base md:text-lg text-slate-900">
-                👥 参加プレイヤー
-              </h2>
-              <span className="bg-blue-100 text-blue-700 font-bold text-xs px-2.5 py-0.5 rounded-full">
-                {members.length} 人
-              </span>
-            </div>
-            
-            <div className="max-h-[300px] md:max-h-[400px] overflow-y-auto pr-1">
-              {members.length === 0 ? (
-                <p className="text-xs md:text-sm text-slate-400 text-center py-6">まだ誰も入室していません</p>
-              ) : (
-                <ul className="space-y-1.5">
-                  {members.map((m, i) => (
-                    <li 
-                      key={i} 
-                      className="bg-slate-50 border border-slate-200/60 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-700"
-                    >
-                      {m.username}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          </section>
-
-          {/* 📝 回答一覧 */}
+          {/* 📝 回答一覧（左〜中央にかけてワイドに表示） */}
           <section className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80 md:col-span-2">
             <div className="mb-4 border-b border-slate-100 pb-3">
               <h2 className="font-extrabold text-base md:text-lg text-slate-900">
@@ -477,6 +448,35 @@ export default function HostPage() {
                   )}
                 </tbody>
               </table>
+            </div>
+          </section>
+
+          {/* 👥 ユーザー一覧（右側にコンパクトに表示） */}
+          <section className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80 md:col-span-1">
+            <div className="flex justify-between items-center mb-4 border-b border-slate-100 pb-3">
+              <h2 className="font-extrabold text-base md:text-lg text-slate-900">
+                👥 参加プレイヤー
+              </h2>
+              <span className="bg-blue-100 text-blue-700 font-bold text-xs px-2.5 py-0.5 rounded-full">
+                {members.length} 人
+              </span>
+            </div>
+            
+            <div className="max-h-[300px] md:max-h-[400px] overflow-y-auto pr-1">
+              {members.length === 0 ? (
+                <p className="text-xs md:text-sm text-slate-400 text-center py-6">まだ誰も入室していません</p>
+              ) : (
+                <ul className="space-y-1.5">
+                  {members.map((m, i) => (
+                    <li 
+                      key={i} 
+                      className="bg-slate-50 border border-slate-200/60 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-700"
+                    >
+                      {m.username}
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           </section>
 
