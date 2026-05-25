@@ -1,12 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation"; // 💡 useRouter を追加
+import { useParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
 export default function HostPage() {
   const { id } = useParams(); // id = 裏側の長〜いUUID
-  const router = useRouter(); // 💡 ページ移動用
+  const router = useRouter();
   
   const [roomName, setRoomName] = useState<string>("読み込み中...");
   const [displayRoomId, setDisplayRoomId] = useState<string>("------");
@@ -17,7 +17,11 @@ export default function HostPage() {
   const [messages, setMessages] = useState<any[]>([]);
   const [members, setMembers] = useState<any[]>([]);
   const [copied, setCopied] = useState(false);
-  const [isDestroying, setIsDestroying] = useState(false); // 💡 解散処理のロック用
+  const [isDestroying, setIsDestroying] = useState(false);
+
+  // 新しく追加したい正解単語を保存する状態
+  const [newAnswer, setNewAnswer] = useState<string>("");
+  const [isAddingAnswer, setIsAddingAnswer] = useState<boolean>(false);
 
   // ルームID（6桁）をクリップボードにコピーする関数
   const handleCopyId = async () => {
@@ -31,22 +35,15 @@ export default function HostPage() {
     }
   };
 
-  // 💡 部屋を完全に解散（データ削除）する関数
+  // 部屋を完全に解散（データ削除）する関数
   const handleDestroyRoom = async () => {
     const confirmDestroy = confirm("⚠️ 本当にこの部屋を解散しますか？\n参加中のプレイヤーは全員強制退室となり、ログは全て削除されます。");
     if (!confirmDestroy || isDestroying) return;
 
     try {
       setIsDestroying(true);
-
-      // 1. 先に参加メンバーデータをきれいに掃除（念のための安全策）
       await supabase.from("room_members").delete().eq("room_id", id);
-
-      // 2. rooms テーブルから部屋データを削除（これによってメンバー側にDELETEイベントが飛びます）
-      const { error } = await supabase
-        .from("rooms")
-        .delete()
-        .eq("id", id);
+      const { error } = await supabase.from("rooms").delete().eq("id", id);
 
       if (error) {
         console.error("解散エラー:", error);
@@ -55,7 +52,7 @@ export default function HostPage() {
       }
 
       alert("部屋を解散しました。");
-      router.push("/"); // 最初のページに戻る
+      router.push("/");
     } catch (err) {
       console.error(err);
       alert("予期せぬエラーが発生しました");
@@ -64,8 +61,76 @@ export default function HostPage() {
     }
   };
 
+  // 正解単語を後から追加して保存する関数
+  const handleAddAnswer = async () => {
+    const targetAnswer = newAnswer.trim();
+    if (!targetAnswer || isAddingAnswer) return;
+
+    if (correctAnswers.includes(targetAnswer)) {
+      alert("その単語はすでに登録されています！");
+      return;
+    }
+
+    try {
+      setIsAddingAnswer(true);
+
+      const { error } = await supabase
+        .from("correct_answers")
+        .insert({
+          room_id: id,
+          answer: targetAnswer,
+        });
+
+      if (error) {
+        console.error("正解単語の追加失敗:", error);
+        alert(`単語の追加に失敗しました: ${error.message}`);
+        return;
+      }
+
+      setCorrectAnswers((prev) => [...prev, targetAnswer]);
+      setNewAnswer(""); 
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsAddingAnswer(false);
+    }
+  };
+
+  // 💡 追加：単語バッジをクリックしたときに削除する関数
+  const handleRemoveAnswer = async (answerToRemove: string) => {
+    const confirmDelete = confirm(`正解単語「${answerToRemove}」を削除しますか？`);
+    if (!confirmDelete) return;
+
+    try {
+      // Supabaseの correct_answers テーブルから該当データを削除
+      const { error } = await supabase
+        .from("correct_answers")
+        .delete()
+        .eq("room_id", id)
+        .eq("answer", answerToRemove);
+
+      if (error) {
+        console.error("正解単語の削除失敗:", error);
+        alert(`単語の削除に失敗しました: ${error.message}`);
+        return;
+      }
+
+      // ローカルの状態（State）から削除した単語を除外して画面を即時更新
+      setCorrectAnswers((prev) => prev.filter((ans) => ans !== answerToRemove));
+    } catch (err) {
+      console.error(err);
+      alert("削除中に予期せぬエラーが発生しました");
+    }
+  };
+
+  // エンターキーでも単語を追加できるようにする
+  const handleAnswerKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      handleAddAnswer();
+    }
+  };
+
   useEffect(() => {
-    // Google Material Icons を動的に読み込む
     const link = document.createElement("link");
     link.href = "https://fonts.googleapis.com/icon?family=Material+Icons";
     link.rel = "stylesheet";
@@ -73,7 +138,6 @@ export default function HostPage() {
 
     if (!id) return;
 
-    // メンバー一覧をデータベースから取得する共通関数
     const fetchCurrentMembers = async () => {
       const { data } = await supabase
         .from("room_members")
@@ -83,7 +147,6 @@ export default function HostPage() {
     };
 
     const fetchInitialData = async () => {
-      // 1. ルームの基本情報（ルーム名 & パスワード & 6桁のroom_id）を取得
       const { data: roomData } = await supabase
         .from("rooms")
         .select("name, password, room_id")
@@ -96,7 +159,6 @@ export default function HostPage() {
         setDisplayRoomId(roomData.room_id || "未設定");
       }
 
-      // 2. ルームに設定された正解単語リストを取得
       const { data: answersData } = await supabase
         .from("correct_answers")
         .select("answer")
@@ -105,10 +167,8 @@ export default function HostPage() {
         setCorrectAnswers(answersData.map((item) => item.answer));
       }
 
-      // 3. 既存の参加者（メンバー）を取得
       await fetchCurrentMembers();
 
-      // 4. 既存のメッセージ（回答）を取得
       const { data: msgData } = await supabase
         .from("messages")
         .select("*")
@@ -118,7 +178,6 @@ export default function HostPage() {
 
     fetchInitialData();
 
-    // リアルタイム監視：新しい回答の検知
     const messageChannel = supabase
       .channel(`room-messages-${id}`)
       .on(
@@ -130,7 +189,6 @@ export default function HostPage() {
       )
       .subscribe();
 
-    // リアルタイム監視：参加者の入退室変更を検知
     const memberChannel = supabase
       .channel(`room-members-changes-${id}`)
       .on(
@@ -161,7 +219,6 @@ export default function HostPage() {
               <h1 className="text-xl md:text-2xl font-black text-slate-900">{roomName}</h1>
             </div>
 
-            {/* 💡 追加：部屋を解散するボタン */}
             <button
               onClick={handleDestroyRoom}
               disabled={isDestroying}
@@ -212,14 +269,14 @@ export default function HostPage() {
           </div>
         </header>
 
-        {/* 🔑 折りたたみ式の正解単語確認コンポーネント */}
+        {/* 🔑 折りたたみ式の正解単語確認・追加コンポーネント */}
         <section className="bg-white rounded-2xl shadow-sm border border-slate-200/80 overflow-hidden">
           <button
             onClick={() => setShowAnswers(!showAnswers)}
             className="w-full flex justify-between items-center px-5 py-4 font-extrabold text-slate-900 bg-white hover:bg-slate-50/80 transition-colors text-left"
           >
             <span className="flex items-center gap-2 text-sm md:text-base">
-              🔑 設定された正解単語の確認
+              🔑 正解単語の確認
             </span>
             <span className="text-xs text-slate-400 bg-slate-100 px-2.5 py-1 rounded-md font-bold">
               {showAnswers ? "🔼 閉じる" : "🔽 開く"}
@@ -229,17 +286,46 @@ export default function HostPage() {
           <div className={`transition-all duration-200 ease-in-out border-t border-slate-100 ${
             showAnswers ? "max-h-[500px] p-5 opacity-100" : "max-h-0 opacity-0 pointer-events-none"
           }`}>
+            
+            {/* インラインの正解単語追加フォームエリア */}
+            <div className="flex gap-2 max-w-md mb-5 bg-slate-50 p-2.5 rounded-xl border border-slate-200/60">
+              <input
+                type="text"
+                placeholder="新しい正解単語を追加"
+                value={newAnswer}
+                onChange={(e) => setNewAnswer(e.target.value)}
+                onKeyDown={handleAnswerKeyDown}
+                disabled={isAddingAnswer}
+                className="flex-1 px-3 py-2 rounded-lg bg-white border border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm font-semibold transition-all"
+              />
+              <button
+                onClick={handleAddAnswer}
+                disabled={isAddingAnswer || !newAnswer.trim()}
+                className={`px-4 py-2 font-black text-sm rounded-lg shadow-sm transition-all active:scale-95 whitespace-nowrap ${
+                  !newAnswer.trim() || isAddingAnswer
+                    ? "bg-slate-200 text-slate-400 cursor-not-allowed shadow-none"
+                    : "bg-blue-600 text-white hover:bg-blue-700"
+                }`}
+              >
+                {isAddingAnswer ? "追加中..." : "➕ 追加"}
+              </button>
+            </div>
+
+            {/* 単語一覧ラベル */}
             {correctAnswers.length === 0 ? (
               <p className="text-xs md:text-sm text-slate-400">設定された正解がありません。</p>
             ) : (
               <div className="flex flex-wrap gap-2">
                 {correctAnswers.map((ans, i) => (
-                  <span 
+                  <button 
                     key={i} 
-                    className="bg-blue-50 text-blue-700 border border-blue-200/60 font-mono font-bold text-xs md:text-sm px-3 py-1.5 rounded-xl shadow-sm"
+                    onClick={() => handleRemoveAnswer(ans)}
+                    title="クリックして削除"
+                    className="bg-blue-50 text-blue-700 border border-blue-200/60 font-mono font-bold text-xs md:text-sm px-3 py-1.5 rounded-xl shadow-sm hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200 transition-all duration-150 cursor-pointer flex items-center gap-1 group"
                   >
-                    {ans}
-                  </span>
+                    <span>{ans}</span>
+                    <span className="text-[10px] text-slate-400 group-hover:text-rose-400 transition-colors font-sans font-normal ml-0.5">✕</span>
+                  </button>
                 ))}
               </div>
             )}
