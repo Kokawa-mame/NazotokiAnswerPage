@@ -96,13 +96,12 @@ export default function HostPage() {
     }
   };
 
-  // 💡 追加：単語バッジをクリックしたときに削除する関数
+  // 単語バッジをクリックしたときに削除する関数
   const handleRemoveAnswer = async (answerToRemove: string) => {
     const confirmDelete = confirm(`正解単語「${answerToRemove}」を削除しますか？`);
     if (!confirmDelete) return;
 
     try {
-      // Supabaseの correct_answers テーブルから該当データを削除
       const { error } = await supabase
         .from("correct_answers")
         .delete()
@@ -115,7 +114,6 @@ export default function HostPage() {
         return;
       }
 
-      // ローカルの状態（State）から削除した単語を除外して画面を即時更新
       setCorrectAnswers((prev) => prev.filter((ans) => ans !== answerToRemove));
     } catch (err) {
       console.error(err);
@@ -128,6 +126,13 @@ export default function HostPage() {
     if (e.key === "Enter") {
       handleAddAnswer();
     }
+  };
+
+  // 💡 該当ユーザーが、特定の単語を正解しているか判定するヘルパー関数
+  const checkUserAnswerStatus = (username: string, answerWord: string) => {
+    return messages.some(
+      (m) => m.username === username && m.text === answerWord && m.is_correct === true
+    );
   };
 
   useEffect(() => {
@@ -178,6 +183,7 @@ export default function HostPage() {
 
     fetchInitialData();
 
+    // リアルタイム監視：新しい回答（メッセージ）の検知
     const messageChannel = supabase
       .channel(`room-messages-${id}`)
       .on(
@@ -276,7 +282,7 @@ export default function HostPage() {
             className="w-full flex justify-between items-center px-5 py-4 font-extrabold text-slate-900 bg-white hover:bg-slate-50/80 transition-colors text-left"
           >
             <span className="flex items-center gap-2 text-sm md:text-base">
-              🔑 正解単語の確認
+              🔑 設定された正解単語の確認
             </span>
             <span className="text-xs text-slate-400 bg-slate-100 px-2.5 py-1 rounded-md font-bold">
               {showAnswers ? "🔼 閉じる" : "🔽 開く"}
@@ -332,7 +338,71 @@ export default function HostPage() {
           </div>
         </section>
 
-        {/* 📊 メインコンテンツ */}
+        {/* 💡 新設：🎯 正解進捗状況マトリックス表（ワイド表示） */}
+        <section className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80 w-full">
+          <div className="mb-4 border-b border-slate-100 pb-3">
+            <h2 className="font-extrabold text-base md:text-lg text-slate-900 flex items-center gap-2">
+              <span>🎯</span> プレイヤー別 正解進捗状況ボード
+            </h2>
+            <p className="text-[11px] text-slate-400 font-semibold mt-0.5">登録中の正解単語を誰がクリアしているかが一目で分かります</p>
+          </div>
+
+          <div className="overflow-x-auto rounded-xl border border-slate-200/80">
+            <table className="w-full border-collapse bg-white text-left text-xs md:text-sm text-slate-600 min-w-[500px]">
+              <thead className="bg-slate-50 font-bold uppercase text-slate-500 border-b border-slate-200 select-none">
+                <tr>
+                  <th className="px-4 py-3 bg-slate-100/80 text-slate-700 font-black w-[180px]">プレイヤー名</th>
+                  {correctAnswers.length === 0 ? (
+                    <th className="px-4 py-3 text-slate-400 italic font-normal">正解単語が未設定です</th>
+                  ) : (
+                    correctAnswers.map((ans, i) => (
+                      <th key={i} className="px-4 py-3 text-center font-mono font-bold text-slate-600 bg-slate-50 max-w-[120px] truncate" title={ans}>
+                        {ans}
+                      </th>
+                    ))
+                  )}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {members.length === 0 ? (
+                  <tr>
+                    <td colSpan={Math.max(2, correctAnswers.length + 1)} className="px-4 py-10 text-center text-slate-400 font-medium">
+                      プレイヤーが入室するとここに表が生成されます
+                    </td>
+                  </tr>
+                ) : (
+                  members.map((member, mIdx) => (
+                    <tr key={mIdx} className="hover:bg-slate-50/60 transition-colors">
+                      <td className="px-4 py-3.5 font-bold text-slate-900 bg-slate-50/40 truncate max-w-[180px]">
+                        {member.username}
+                      </td>
+                      {correctAnswers.length === 0 ? (
+                        <td className="px-4 py-3.5 text-slate-400">ー</td>
+                      ) : (
+                        correctAnswers.map((ans, aIdx) => {
+                          const isCleared = checkUserAnswerStatus(member.username, ans);
+                          return (
+                            <td key={aIdx} className="px-4 py-3.5 text-center whitespace-nowrap">
+                              {isCleared ? (
+                                <span className="inline-flex items-center rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-black px-2.5 py-0.5 shadow-sm animate-fade-in">
+                                  🟢 正解
+                                </span>
+                              ) : (
+                                <span className="text-slate-300 font-normal select-none">ー</span>
+                              )}
+                            </td>
+                          );
+                        })
+                      )}
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        {/* 📊 メインコンテンツ（下段グリッド） */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
           
           {/* 👥 ユーザー一覧 */}
